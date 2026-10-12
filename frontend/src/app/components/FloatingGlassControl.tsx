@@ -95,7 +95,7 @@ export default function FloatingGlassControl() {
 
             <input
               type="range"
-              min="0.05"
+              min="0.0"
               max="1.0"
               step="0.05"
               value={glassIntensity}
@@ -104,9 +104,9 @@ export default function FloatingGlassControl() {
             />
 
             <div className="flex justify-between text-[10px] text-label-tertiary font-medium">
-              <span>Bening (Thin)</span>
-              <span>Standar</span>
-              <span>Frosty (Thick)</span>
+              <span>Bening (0%)</span>
+              <span>Transparan</span>
+              <span>Pekat (100%)</span>
             </div>
           </div>
 

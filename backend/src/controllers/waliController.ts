@@ -307,6 +307,38 @@ export const getLembarRaporSiswa = async (req: AuthRequest, res: Response) => {
     const siswaId = String(req.params.siswaId);
     const semester = req.query.semester ? String(req.query.semester) : 'GANJIL';
     const tahunAjaran = req.query.tahunAjaran ? String(req.query.tahunAjaran) : '2025/2026';
+    const userId = req.user?.id;
+    const role = req.user?.role;
+
+    // Proteksi Hak Akses Berdasarkan Role
+    if (role === 'SISWA') {
+      const currentSiswa = await prisma.siswa.findUnique({ where: { userId } });
+      if (!currentSiswa || currentSiswa.id !== siswaId) {
+        return res.status(403).json({ error: 'Akses ditolak: Anda hanya berhak mengakses lembar rapor milik Anda sendiri.' });
+      }
+    } else if (role === 'ORTU') {
+      const currentOrtu = await prisma.ortu.findUnique({
+        where: { userId },
+        include: { anak: true }
+      });
+      const isAnakSendiri = currentOrtu?.anak.some(a => a.id === siswaId);
+      if (!isAnakSendiri) {
+        return res.status(403).json({ error: 'Akses ditolak: Anda hanya berhak mengakses lembar rapor anak Anda sendiri.' });
+      }
+    } else if (role === 'GURU') {
+      // Pastikan jika guru, dia adalah wali kelas dari siswa yang bersangkutan (atau admin)
+      const guru = await prisma.guru.findUnique({
+        where: { userId },
+        include: { kelasWali: true }
+      });
+      if (!guru || !guru.kelasWali) {
+        return res.status(403).json({ error: 'Akses ditolak: Anda bukan wali kelas.' });
+      }
+      const targetSiswa = await prisma.siswa.findUnique({ where: { id: siswaId } });
+      if (!targetSiswa || targetSiswa.kelasId !== guru.kelasWali.id) {
+        return res.status(403).json({ error: 'Akses ditolak: Siswa ini bukan merupakan anggota kelas binaan Anda.' });
+      }
+    }
 
     const siswa = await prisma.siswa.findUnique({
       where: { id: siswaId },

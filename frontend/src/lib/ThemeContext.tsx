@@ -48,7 +48,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
 
   const setGlassIntensity = (val: number) => {
-    const clamped = Math.min(1, Math.max(0.05, val));
+    const clamped = Math.min(1, Math.max(0.0, val));
     setGlassIntensityState(clamped);
     document.documentElement.style.setProperty('--glass-intensity', String(clamped));
     try {

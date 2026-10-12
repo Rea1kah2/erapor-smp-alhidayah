@@ -1,14 +1,42 @@
 import { type Request, type Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { type AuthRequest } from '../middleware/auth.js';
 
 const prisma = new PrismaClient();
 
-export const upsertNilai = async (req: Request, res: Response) => {
+export const upsertNilai = async (req: AuthRequest, res: Response) => {
   try {
     const { siswaId, mapelId, jenis, skor, semester, tahunAjaran } = req.body;
+    const userId = req.user?.id;
+    const role = req.user?.role;
 
     if (!siswaId || !mapelId || !jenis || skor === undefined || !semester || !tahunAjaran) {
       return res.status(400).json({ error: 'Semua kolom data (termasuk skor) wajib diisi' });
+    }
+
+    // Validasi wewenang pengampu: Jika role GURU, pastikan mapel ini memang diampu oleh guru yang login
+    if (role === 'GURU') {
+      const guru = await prisma.guru.findUnique({
+        where: { userId }
+      });
+
+      if (!guru) {
+        return res.status(403).json({ error: 'Profil guru tidak ditemukan' });
+      }
+
+      const mapel = await prisma.mapel.findUnique({
+        where: { id: mapelId }
+      });
+
+      if (!mapel) {
+        return res.status(404).json({ error: 'Mata pelajaran tidak ditemukan' });
+      }
+
+      if (mapel.guruId !== guru.id) {
+        return res.status(403).json({
+          error: `Akses ditolak: Anda bukan guru pengampu untuk mata pelajaran "${mapel.nama}". Hanya guru pengampu yang berhak memasukkan nilai.`
+        });
+      }
     }
 
     const nilai = await prisma.nilai.upsert({

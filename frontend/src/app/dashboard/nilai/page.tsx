@@ -97,11 +97,20 @@ export default function NilaiPage() {
         const token = localStorage.getItem('siakad_token');
         const headers = { Authorization: `Bearer ${token}` };
 
-        const [resKelas, resMapel, resAllSiswa] = await Promise.all([
+        const [resMe, resKelas, resMapel, resAllSiswa] = await Promise.all([
+          fetch('http://localhost:3001/api/auth/me', { headers }),
           fetch('http://localhost:3001/api/master/kelas', { headers }),
           fetch('http://localhost:3001/api/master/mapel', { headers }),
           fetch('http://localhost:3001/api/master/siswa', { headers })
         ]);
+
+        let userRole = 'GURU';
+        let guruId: string | undefined;
+        if (resMe.ok) {
+          const meData = await resMe.json();
+          userRole = meData.user?.role || 'GURU';
+          guruId = meData.user?.guru?.id;
+        }
 
         if (resKelas.ok) {
           const kData: Kelas[] = await resKelas.json();
@@ -111,8 +120,13 @@ export default function NilaiPage() {
 
         if (resMapel.ok) {
           const mData: Mapel[] = await resMapel.json();
-          setMapelList(mData);
-          if (mData.length > 0) setSelectedMapelId(mData[0].id);
+          // Jika role GURU, filter hanya mapel yang diampunya
+          const filteredMapel = userRole === 'GURU' && guruId
+            ? mData.filter((m: any) => m.guruId === guruId)
+            : mData;
+
+          setMapelList(filteredMapel);
+          if (filteredMapel.length > 0) setSelectedMapelId(filteredMapel[0].id);
         }
 
         if (resAllSiswa.ok) {

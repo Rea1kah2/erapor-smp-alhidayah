@@ -69,13 +69,13 @@
 
 @utility glass {
   --glass-i: clamp(0, calc(var(--glass-intensity) + var(--glass-bias, 0)), 1);
-  --glass-blur: calc(6px + var(--glass-i) * 24px);
-  --glass-saturate: calc(140% + var(--glass-i) * 20%);
-  --glass-tint-alpha: calc(0.06 + var(--glass-i) * 0.34);
-  --glass-rim-alpha: calc((0.30 + var(--glass-i) * 0.20) * var(--glass-hl-scale));
-  --glass-spec-alpha: calc((0.45 + var(--glass-i) * 0.25) * var(--glass-hl-scale));
-  --glass-edge-alpha: calc(0.05 + var(--glass-i) * 0.07);
-  --glass-shadow-alpha: calc(0.06 + var(--glass-i) * 0.08);
+  --glass-blur: calc(var(--glass-i) * 36px);
+  --glass-saturate: calc(100% + var(--glass-i) * 80%);
+  --glass-tint-alpha: calc(0.02 + var(--glass-i) * 0.94);
+  --glass-rim-alpha: calc((0.15 + var(--glass-i) * 0.35) * var(--glass-hl-scale));
+  --glass-spec-alpha: calc((0.20 + var(--glass-i) * 0.50) * var(--glass-hl-scale));
+  --glass-edge-alpha: calc(0.02 + var(--glass-i) * 0.12);
+  --glass-shadow-alpha: calc(0.02 + var(--glass-i) * 0.16);
 
   position: relative;
   isolation: isolate;
