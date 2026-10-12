@@ -1,0 +1,136 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      String   // "ADMIN", "GURU", "SISWA", "ORTU"
+  createdAt DateTime @default(now())
+  
+  // Relasi ke tabel profil
+  guru      Guru?
+  siswa     Siswa?
+  ortu      Ortu?
+}
+
+model Guru {
+  id        String   @id @default(uuid())
+  nip       String?  @unique
+  nama      String
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  
+  // Wali kelas
+  kelasWali Kelas?
+  // Mengajar mapel
+  mapel     Mapel[]
+}
+
+model Siswa {
+  id        String   @id @default(uuid())
+  nisn      String   @unique
+  nama      String
+  kelasId   String?
+  kelas     Kelas?   @relation(fields: [kelasId], references: [id])
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  ortuId    String?
+  ortu      Ortu?    @relation(fields: [ortuId], references: [id])
+  
+  // Relasi nilai
+  nilai        Nilai[]
+  catatanRapor CatatanRapor[]
+}
+
+model Ortu {
+  id        String   @id @default(uuid())
+  nama      String
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  
+  anak      Siswa[]
+}
+
+model Kelas {
+  id        String   @id @default(uuid())
+  nama      String   // Misal: "VII-A", "VIII-B", "IX-1"
+  tingkat   Int      // 7, 8, 9 (Jenjang SMP)
+  waliId    String?  @unique
+  wali      Guru?    @relation(fields: [waliId], references: [id])
+  
+  siswa     Siswa[]
+}
+
+model Mapel {
+  id        String   @id @default(uuid())
+  nama      String   // "Matematika", "Bahasa Inggris", "IPA", "IPS", dll
+  kkm       Float    @default(75)
+  guruId    String?
+  guru      Guru?    @relation(fields: [guruId], references: [id])
+  
+  nilai     Nilai[]
+}
+
+// backend/prisma/schema.prisma
+
+model Nilai {
+  id          String   @id @default(cuid())
+  skor        Float    // Menyimpan angka desimal/bulat (misal: 85.5)
+  jenis       String   // Kategori: "TUGAS", "UTS", "UAS"
+  semester    String   // "GANJIL" atau "GENAP"
+  tahunAjaran String   // Format: "2025/2026"
+  
+  // Relasi
+  siswaId     String
+  siswa       Siswa    @relation(fields: [siswaId], references: [id], onDelete: Cascade)
+  
+  mapelId     String
+  mapel       Mapel    @relation(fields: [mapelId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([siswaId, mapelId, jenis, semester, tahunAjaran])
+}
+
+model CatatanRapor {
+  id                 String   @id @default(uuid())
+  semester           String   // "GANJIL" atau "GENAP"
+  tahunAjaran        String   // Format: "2025/2026"
+  
+  // Kehadiran (Presensi)
+  sakit              Int      @default(0)
+  izin               Int      @default(0)
+  alfa               Int      @default(0)
+  
+  // Nilai Sikap
+  sikapSpiritual     String?  @default("A") // "A", "B", "C", "D"
+  deskripsiSpiritual String?  @default("Menunjukkan ketaatan beribadah dan sikap berdoa dengan sangat baik.")
+  sikapSosial        String?  @default("A") // "A", "B", "C", "D"
+  deskripsiSosial    String?  @default("Menunjukkan sikap santun, disiplin, peduli, dan bertanggung jawab.")
+  
+  // Ekstrakurikuler (JSON format: [{ "nama": "Pramuka", "predikat": "A", "keterangan": "Sangat aktif" }])
+  ekskul             Json?    @default("[]")
+  
+  // Catatan Perkembangan dari Wali Kelas
+  catatanWali        String?
+  statusKenaikan     String?  // Misal: "Naik ke Kelas VIII", "Lulus", dll.
+  
+  // Relasi
+  siswaId            String
+  siswa              Siswa    @relation(fields: [siswaId], references: [id], onDelete: Cascade)
+  
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([siswaId, semester, tahunAjaran])
+}

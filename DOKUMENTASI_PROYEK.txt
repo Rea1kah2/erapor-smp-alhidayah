@@ -1,0 +1,372 @@
+================================================================================
+DOKUMEN SPESIFIKASI, ARSITEKTUR & PANDUAN PENGEMBANGAN SISTEM (TECHNICAL & USER MANUAL)
+SISTEM E-RAPOR BERBASIS WEB - SMP AL-HIDAYAH MEDAN
+================================================================================
+
+1. INFORMASI PROYEK & AKADEMIK
+--------------------------------------------------------------------------------
+• Judul Proyek    : Rancang Bangun Sistem E-Rapor Berbasis Web pada SMP Al-Hidayah
+                    Menggunakan Metode Waterfall
+• Penulis / Klien : Amelia Putri Ramadhanti (NPM: 2314370049)
+• Program Studi   : Sistem Komputer
+• Fakultas        : Sains Komputasi dan Kecerdasan Digital
+• Institusi       : Universitas Pembangunan Panca Budi, Medan
+• Tahun Akademik  : 2026
+• Dosen Pembimbing: Hanna Willa Dhany, S.Kom., M.Kom.
+• Mitra Pengguna  : SMP Al-Hidayah, Medan
+
+
+2. LATAR BELAKANG & TUJUAN SISTEM
+--------------------------------------------------------------------------------
+A. Masalah Sistem Lama (As-Is):
+   1. Pencatatan Terpisah: Guru menginput nilai secara manual (kertas/Excel non-terpusat).
+   2. Duplikasi Kerja: Wali kelas dan Tata Usaha (TU) harus merekap ulang data
+      satu per satu yang memakan waktu dan tenaga.
+   3. Human Error: Rawan kekeliruan salah input atau perhitungan nilai akhir (NA).
+   4. Hambatan Arsip: Arsip nilai fisik menyulitkan penelusuran riwayat akademik terdahulu.
+
+B. Solusi Sistem Baru (To-Be):
+   1. Terintegrasi: Alur penginputan nilai, rekapitulasi, perhitungan ranking, hingga
+      pencetakan rapor terpusat dalam satu aplikasi web.
+   2. Kalkulasi Otomatis: Nilai Akhir (NA), predikat kelulusan (KKM), dan ranking kelas
+      dihitung secara otomatis menggunakan formula standar.
+   3. Aksesibilitas Multi-Role: Dapat diakses kapan saja oleh Admin/TU, Guru,
+      Wali Kelas, Siswa, dan Orang Tua secara transparan dan akuntabel.
+   4. Siap Cetak Digital: Ekspor/Cetak lembar rapor standar format A4 kedinasan
+      lengkap dengan Kop Surat SMP Al-Hidayah dan kolom pengesahan.
+
+
+3. METODOLOGI PENGEMBANGAN (WATERFALL SDLC)
+--------------------------------------------------------------------------------
+Pengembangan sistem dirancang secara bertahap dan sistematis:
+1. Requirements Analysis : Mengidentifikasi 5 peran aktor, alur bisnis, dan aturan penilaian.
+2. System Design         : Merancang skema relasional database (Prisma ORM & PostgreSQL),
+                           arsitektur RESTful API, dan wireframe Apple HIG UI Clean.
+3. Implementation/Coding : Pengembangan Backend (Node.js, Express, TypeScript) dan
+                           Frontend (Next.js 16 App Router, Tailwind CSS, Turbopack).
+4. System Testing        : Pengujian menyeluruh menggunakan Black Box Testing Matrix.
+5. Maintenance           : Penataan struktur kode modular, variabel lingkungan (.env),
+                           dan dokumentasi teknis ini untuk pemeliharaan jangka panjang.
+
+
+4. ARSITEKTUR TEKNOLOGI (TECH STACK)
+--------------------------------------------------------------------------------
+A. Backend:
+   • Runtime / Bahasa : Node.js (v18+) & TypeScript
+   • Framework        : Express.js v5
+   • ORM / Database   : Prisma Client v5.19 & PostgreSQL (Neon Cloud DB)
+   • Keamanan / Enkripsi: JSON Web Token (JWT) & bcryptjs (Salt Hashing 10 rounds)
+   • Port Default     : http://localhost:3001
+
+B. Frontend:
+   • Framework        : Next.js 16 (App Router Architecture, React 19)
+   • Styling & UI     : Tailwind CSS (Apple Human Interface Guidelines & Liquid Glass theme)
+   • Ikonografi       : Lucide React
+   • Engine Compiler  : Turbopack
+   • Port Default     : http://localhost:3000
+
+
+5. HAK AKSES & PERAN PENGGUNA (ROLE PRIVILEGES)
+--------------------------------------------------------------------------------
+Sistem mendukung 5 peran pengguna dengan mekanisme otentikasi berbasis Token (JWT):
+
+1. Administrator / Staf TU (Role: ADMIN)
+   • Akses penuh dashboard analitik & statistik master data sekolah.
+   • Manajemen data guru (NIP, nama, email, akun login).
+   • Manajemen data siswa (NISN, kelas, akun login, relasi orang tua).
+   • Manajemen data akademik (Tingkat jenjang kelas 7, 8, 9, dan penugasan Wali Kelas).
+   • Manajemen mata pelajaran kurikulum dan standar KKM.
+   • Supervisi rekapitulasi seluruh kelas dan cetak rapor semua siswa.
+
+2. Guru Mata Pelajaran (Role: GURU)
+   • Mengakses daftar mata pelajaran yang diampunya.
+   • Menginput, mengedit, dan menyimpan nilai Tugas, UTS, dan UAS siswa per kelas.
+   • Melihat visualisasi status ketercapaian KKM siswa.
+
+3. Wali Kelas (Role: GURU yang memiliki penugasan Wali Kelas / Opsi A)
+   • Otomatis mendeteksi kelas binaan di menu khusus "Rekap & Wali".
+   • Memantau rekapitulasi nilai kumulatif seluruh mata pelajaran di kelas binaannya.
+   • Kalkulasi otomatis Nilai Rata-rata dan Peringkat Kelas (Ranking 1..N).
+   • Menginput dan memperbarui komponen Catatan Rapor:
+     - Presensi: Hari Sakit (S), Izin (I), Tanpa Keterangan / Alfa (A).
+     - Sikap Spiritual: Predikat (A/B/C/D) dan deskripsi pembinaan ibadah/toleransi.
+     - Sikap Sosial: Predikat (A/B/C/D) dan deskripsi kesantunan, kedisiplinan, peduli.
+     - Ekstrakurikuler: Daftar kegiatan (Pramuka Wajib, dsb.), predikat, dan keterangan.
+     - Catatan Wali: Pesan bimbingan dan motivasi siswa.
+     - Kenaikan Kelas: Status keputusan kenaikan kelas (khusus semester Genap).
+   • Mencetak lembar rapor resmi siswa dalam format A4.
+
+4. Siswa (Role: SISWA)
+   • Melihat profil diri, NISN, kelas, dan nama guru wali kelas.
+   • Membuka menu "Rapor Saya" untuk melihat transparansi capaian nilai mata pelajaran.
+   • Memeriksa status ketuntasan KKM, rekap presensi, dan catatan sikap secara mandiri.
+   • Meninjau dan mengunduh pratinjau lembar cetak rapor pribadi (PDF).
+
+5. Orang Tua / Wali Murid (Role: ORTU)
+   • Terhubung secara relasional ke data akun anak (siswa).
+   • Memantau perkembangan akademik anak secara real-time.
+   • Membuka evaluasi nilai akhir, presensi (sakit/izin/alfa), dan catatan bimbingan guru.
+   • Mencetak lembar rapor resmi anak dari rumah kapan saja.
+
+
+6. FORMULA & ATURAN LOGIKA PENILAIAN (GRADING BUSINESS LOGIC)
+--------------------------------------------------------------------------------
+A. Pembobotan Nilai Akhir (NA):
+   • Tugas / Harian  : Bobot 40% (0.4)
+   • Nilai UTS       : Bobot 30% (0.3)
+   • Nilai UAS       : Bobot 30% (0.3)
+
+   Rumus:
+   NA = (Tugas * 0.4) + (UTS * 0.3) + (UAS * 0.3)
+
+   *Catatan: Sistem secara cerdas menangani kondisi nilai parsial. Jika komponen
+    belum lengkap terisi, pembagian dilakukan proporsional berdasarkan bobot yang ada.
+
+B. Skala Predikat & Kriteria Ketuntasan Minimal (KKM):
+   Standar KKM default adalah 75.0 (dapat disesuaikan per mata pelajaran).
+   • Nilai Akhir >= 90         : Predikat "A" (Sangat Baik)
+   • Nilai Akhir >= 80 s/d 89  : Predikat "B" (Baik)
+   • Nilai Akhir >= KKM s/d 79 : Predikat "C" (Cukup / Tuntas KKM)
+   • Nilai Akhir < KKM         : Predikat "D" (Kurang / Perlu Remedial)
+
+C. Perhitungan Peringkat Siswa (Ranking):
+   • Rata-Rata Siswa = (Jumlah Nilai Akhir Semua Mapel Dinilai) / (Jumlah Mapel Dinilai)
+   • Peringkat kelas diurutkan menurun (descending) dari Rata-Rata tertinggi ke terendah.
+
+
+7. STRUKTUR DATABASE (PRISMA SCHEMA)
+--------------------------------------------------------------------------------
+Database terdiri dari tabel-tabel terelasi berikut:
+
+1. User
+   - id          : String (UUID, Primary Key)
+   - email       : String (Unique)
+   - password    : String (Hash bcryptjs)
+   - role        : String ("ADMIN", "GURU", "SISWA", "ORTU")
+   - createdAt   : DateTime
+
+2. Guru
+   - id          : String (UUID, Primary Key)
+   - nip         : String (Unique, Nullable)
+   - nama        : String
+   - userId      : String (Foreign Key -> User.id)
+   - kelasWali   : Relasi 1-to-1 ke Kelas (menjadi Wali Kelas)
+   - mapel       : Relasi 1-to-Many ke Mapel (mengajar mapel)
+
+3. Siswa
+   - id          : String (UUID, Primary Key)
+   - nisn        : String (Unique)
+   - nama        : String
+   - kelasId     : String (Foreign Key -> Kelas.id, Nullable)
+   - userId      : String (Foreign Key -> User.id)
+   - ortuId      : String (Foreign Key -> Ortu.id, Nullable)
+   - nilai       : Relasi 1-to-Many ke Nilai
+   - catatanRapor: Relasi 1-to-Many ke CatatanRapor
+
+4. Ortu
+   - id          : String (UUID, Primary Key)
+   - nama        : String
+   - userId      : String (Foreign Key -> User.id)
+   - anak        : Relasi 1-to-Many ke Siswa
+
+5. Kelas
+   - id          : String (UUID, Primary Key)
+   - nama        : String (Contoh: "VII-A", "VIII-B", "IX-1")
+   - tingkat     : Int (7, 8, 9 - Jenjang SMP)
+   - waliId      : String (Foreign Key -> Guru.id, Unique, Nullable)
+   - siswa       : Relasi 1-to-Many ke Siswa
+
+6. Mapel
+   - id          : String (UUID, Primary Key)
+   - nama        : String (Contoh: "Matematika", "Bahasa Indonesia", "IPA")
+   - kkm         : Float (Default: 75.0)
+   - guruId      : String (Foreign Key -> Guru.id, Nullable)
+   - nilai       : Relasi 1-to-Many ke Nilai
+
+7. Nilai
+   - id          : String (CUID, Primary Key)
+   - skor        : Float (Skor nilai angka 0 - 100)
+   - jenis       : String ("TUGAS", "UTS", "UAS")
+   - semester    : String ("GANJIL", "GENAP")
+   - tahunAjaran : String (Contoh: "2025/2026")
+   - siswaId     : String (Foreign Key -> Siswa.id, Cascade Delete)
+   - mapelId     : String (Foreign Key -> Mapel.id, Cascade Delete)
+   - Constraint  : @@unique([siswaId, mapelId, jenis, semester, tahunAjaran])
+
+8. CatatanRapor
+   - id                 : String (UUID, Primary Key)
+   - semester           : String ("GANJIL", "GENAP")
+   - tahunAjaran        : String ("2025/2026")
+   - sakit              : Int (Default: 0)
+   - izin               : Int (Default: 0)
+   - alfa               : Int (Default: 0)
+   - sikapSpiritual     : String ("A", "B", "C", "D")
+   - deskripsiSpiritual : String (Teks deskripsi ketaatan ibadah)
+   - sikapSosial        : String ("A", "B", "C", "D")
+   - deskripsiSosial    : String (Teks deskripsi etika sosial)
+   - ekskul             : Json ([{ nama, predikat, keterangan }])
+   - catatanWali        : String (Catatan motivasi dan bimbingan)
+   - statusKenaikan     : String (Nullable, contoh: "Naik ke Kelas VIII")
+   - siswaId            : String (Foreign Key -> Siswa.id, Cascade Delete)
+   - Constraint         : @@unique([siswaId, semester, tahunAjaran])
+
+
+8. DAFTAR ENDPOINT BACKEND (REST API SPECIFICATION)
+--------------------------------------------------------------------------------
+Semua endpoint selain autentikasi wajib menyertakan Header:
+Authorization: Bearer <TOKEN_JWT>
+
+A. Autentikasi (`/api/auth`)
+   • POST /api/auth/login
+     Body: { email, password }
+     Response: { token, role, user }
+   • GET  /api/auth/me
+     Response: Detail profil pengguna login beserta relasi perannya.
+
+B. Master Data Administrator (`/api/master`)
+   • GET  /api/master/stats        -> Statistik total guru, siswa, kelas, mapel.
+   • GET  /api/master/guru         -> Daftar seluruh data guru.
+   • POST /api/master/guru         -> Tambah data guru & buat akun login otomatis.
+   • GET  /api/master/siswa        -> Daftar seluruh siswa beserta kelas & ortu.
+   • POST /api/master/siswa        -> Tambah data siswa & buat akun login.
+   • GET  /api/master/kelas        -> Daftar kelas beserta nama wali kelas.
+   • POST /api/master/kelas        -> Tambah kelas (tingkat 7, 8, 9 & pilih wali).
+   • GET  /api/master/mapel        -> Daftar mata pelajaran beserta guru pengampu & KKM.
+   • POST /api/master/mapel        -> Tambah mata pelajaran & tentukan KKM.
+
+C. Pengolahan Nilai (`/api/nilai`)
+   • POST /api/nilai               -> Simpan / update skor nilai (TUGAS/UTS/UAS).
+   • GET  /api/nilai/mapel         -> Ambil matriks nilai siswa per mapel & kelas.
+   • GET  /api/nilai/saya          -> Ambil riwayat nilai siswa (khusus SISWA & ORTU).
+
+D. Rekapitulasi & E-Rapor Wali Kelas (`/api/wali`)
+   • GET  /api/wali/kelas-binaan   -> Ambil data kelas yang diampu oleh wali kelas.
+   • GET  /api/wali/rekap          -> Ambil rekapitulasi nilai, rata-rata, dan ranking kelas.
+   • POST /api/wali/catatan        -> Simpan presensi, nilai sikap, ekskul, dan catatan wali.
+   • GET  /api/wali/rapor/:siswaId -> Ambil lembar rapor cetak lengkap untuk 1 siswa.
+
+
+9. STRUKTUR DIREKTORI PROYEK (SOURCE CODE STRUCTURE)
+--------------------------------------------------------------------------------
+siakad-sekolah/
+├── DOKUMENTASI_PROYEK.txt       # File dokumentasi lengkap ini
+├── backend/                     # Node.js + Express + Prisma API
+│   ├── .env                     # Konfigurasi DATABASE_URL & JWT_SECRET
+│   ├── package.json             # Dependensi backend
+│   ├── tsconfig.json            # Konfigurasi TypeScript backend
+│   ├── prisma/
+│   │   ├── schema.prisma        # Definisi skema database & relasi tabel
+│   │   └── seed.ts              # Script seeder akun Administrator default
+│   └── src/
+│       ├── index.ts             # Server entrypoint & route registration
+│       ├── controllers/
+│       │   ├── authController.ts   # Logika login & profil user
+│       │   ├── masterController.ts # Logika CRUD guru, siswa, kelas, mapel
+│       │   ├── nilaiController.ts  # Logika input & get nilai mapel
+│       │   └── waliController.ts   # Logika rekap kelas, catatan, & rapor cetak
+│       ├── middleware/
+│       │   └── auth.ts          # Middleware verifikasi token JWT & proteksi role
+│       └── routes/
+│           ├── authRoutes.ts
+│           ├── masterRoutes.ts
+│           ├── nilaiRoutes.ts
+│           └── waliRoutes.ts
+└── frontend/                    # Next.js 16 (App Router) + Tailwind CSS
+    ├── package.json             # Dependensi frontend
+    ├── next.config.ts           # Konfigurasi Next.js & Turbopack
+    ├── tsconfig.json            # Konfigurasi TypeScript frontend
+    └── src/
+        ├── app/
+        │   ├── layout.tsx       # Root layout HTML & Font inter
+        │   ├── page.tsx         # Halaman Login Utama dengan Glassmorphism UI
+        │   ├── global.css       # Global Apple-style variables & print media queries
+        │   └── dashboard/
+        │       ├── layout.tsx   # Sidebar navigasi dinamis berbasis hak akses role
+        │       ├── page.tsx     # Beranda Dashboard (Tampilan Admin, Guru, Siswa/Ortu)
+        │       ├── akademik/    # Halaman manajemen kelas 7, 8, 9 & mata pelajaran
+        │       ├── guru/        # Halaman manajemen master data guru
+        │       ├── siswa/       # Halaman manajemen master data siswa
+        │       ├── nilai/       # Halaman input nilai mata pelajaran bagi guru
+        │       ├── wali/        # Halaman rekapitulasi, ranking, & catatan wali kelas
+        │       ├── rapor/       # Halaman transparansi nilai mandiri siswa & orang tua
+        │       └── components/
+        │           └── PrintableRapor.tsx # Komponen lembar rapor A4 siap cetak / PDF
+        └── lib/
+            └── glass.ts         # Utility kelas styling glassmorphism
+
+
+10. PANDUAN INSTALASI & MENJALANKAN SISTEM (SETUP GUIDE)
+--------------------------------------------------------------------------------
+A. Prasyarat Sistem:
+   • Node.js (Minimal versi 18.x atau versi 20.x rekomendasi)
+   • npm (versi 9.x ke atas)
+   • Akses Internet untuk koneksi database PostgreSQL Neon Cloud
+
+B. Langkah Menjalankan Backend:
+   1. Buka terminal dan arahkan ke folder backend:
+      $ cd backend
+   2. Pastikan file `.env` sudah terisi dengan kredensial database & JWT:
+      DATABASE_URL="postgresql://neondb_owner:npg_1T2XoWJvDrcL@ep-weathered-snow-a1w1a2qf-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
+      JWT_SECRET="rahasia_siakad_smp_alhidayah_super_aman"
+   3. Sinkronkan skema database Prisma:
+      $ npx prisma db push
+   4. Jalankan server backend (development mode):
+      $ npm run dev
+   5. Server akan aktif di: http://localhost:3001
+
+C. Langkah Menjalankan Frontend:
+   1. Buka tab terminal baru dan arahkan ke folder frontend:
+      $ cd frontend
+   2. Instal paket dependensi (jika belum pernah diinstal):
+      $ npm install
+   3. Jalankan server frontend:
+      $ npm run dev
+   4. Buka aplikasi pada browser:
+      http://localhost:3000
+
+D. Akun Login Default Pengujian (Seeder):
+   • Role Administrator:
+     - Email    : admin@sekolah.com
+     - Password : admin123
+
+
+11. HASIL PENGUJIAN BLACK BOX (BLACK BOX TESTING MATRIX)
+--------------------------------------------------------------------------------
+Dokumentasi pengujian fungsionalitas input/output sistem untuk Laporan Skripsi Bab 4:
+
++-----------+------------------------+-------------------------------+---------------------------------+--------+
+| Kode Uji  | Modul / Skenario       | Aksi & Input Pengujian        | Hasil yang Diharapkan           | Status |
++-----------+------------------------+-------------------------------+---------------------------------+--------+
+| BB-01     | Otentikasi Pengguna    | Input email & password valid  | Pengguna berhasil masuk dan     | VALID  |
+|           | (Login Multi-Role)     | pada form login utama         | diarahkan ke dashboard role-nya.|        |
++-----------+------------------------+-------------------------------+---------------------------------+--------+
+| BB-02     | Deteksi Wali Kelas     | Login akun guru yang ditugasi | Sistem otomatis mendeteksi kelas| VALID  |
+|           | Dinamis (Opsi A)       | sebagai wali kelas            | binaan dan membuka menu rekap.  |        |
++-----------+------------------------+-------------------------------+---------------------------------+--------+
+| BB-03     | Perhitungan Nilai      | Input Tugas: 80, UTS: 75,     | Nilai Akhir terkalkulasi: 80.0  | VALID  |
+|           | Akhir Otomatis (NA)    | UAS: 85 (Bobot 40:30:30)      | Predikat B (Tuntas KKM >= 75).  |        |
++-----------+------------------------+-------------------------------+---------------------------------+--------+
+| BB-04     | Penyimpanan Catatan    | Input Sakit, Izin, Alfa,      | Data tersimpan ke entitas       | VALID  |
+|           | Rapor & Presensi       | Sikap Spiritual, Sikap Sosial | CatatanRapor tanpa duplikasi.   |        |
++-----------+------------------------+-------------------------------+---------------------------------+--------+
+| BB-05     | Perhitungan Peringkat  | Membuka halaman rekapitulasi  | Sistem otomatis meranking siswa | VALID  |
+|           | Kelas (Ranking)        | kelas binaan wali kelas       | berdasarkan rata-rata tertinggi.|        |
++-----------+------------------------+-------------------------------+---------------------------------+--------+
+| BB-06     | Cetak Lembar Rapor     | Klik tombol "Cetak / Simpan   | Menampilkan pop-up cetak A4     | VALID  |
+|           | Format A4 Resmi        | PDF" di portal wali/siswa     | lengkap Kop Sekolah & TTD 3 pos.|        |
++-----------+------------------------+-------------------------------+---------------------------------+--------+
+| BB-07     | Akses Rapor Siswa      | Login menggunakan akun        | Siswa & orang tua hanya bisa    | VALID  |
+|           | dan Orang Tua          | siswa / anak yang terdaftar   | melihat nilai miliknya sendiri. |        |
++-----------+------------------------+-------------------------------+---------------------------------+--------+
+
+
+12. CATATAN PENGEMBANGAN LANJUTAN (FUTURE ROADMAP)
+--------------------------------------------------------------------------------
+Untuk pengembangan versi berikutnya di SMP Al-Hidayah, saran fitur tambahan:
+1. Ekspor Rapor massal 1 kelas sekaligus menjadi bundel file .ZIP berisi PDF masing-masing siswa.
+2. Integrasi notifikasi WhatsApp Gateway ke nomor Orang Tua saat rapor semester disahkan.
+3. Fitur backup dan restore basis data otomatis menjelang tahun ajaran baru.
+
+================================================================================
+DOKUMEN DITERBITKAN: TAHUN 2026 | SMP AL-HIDAYAH MEDAN | PROYEK SKRIPSI WATERFALL
+================================================================================
