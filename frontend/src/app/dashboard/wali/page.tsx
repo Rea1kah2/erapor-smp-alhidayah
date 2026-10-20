@@ -1,9 +1,9 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { apiFetch } from "@/lib/api";
+import { errorMessage } from '@/lib/errors';
+import { useState, useEffect, useCallback } from 'react';
 import { 
-  Award, 
   Users, 
-  FileSpreadsheet, 
   Printer, 
   Edit3, 
   CheckCircle2, 
@@ -15,7 +15,6 @@ import {
   X,
   Plus,
   Trash2,
-  Calendar,
   Layers
 } from 'lucide-react';
 import PrintableRapor, { RaporData } from '../components/PrintableRapor';
@@ -44,28 +43,44 @@ interface SiswaRekap {
     sakit: number;
     izin: number;
     alfa: number;
-    sikapSpiritual: string;
-    deskripsiSpiritual: string;
-    sikapSosial: string;
-    deskripsiSosial: string;
-    ekskul: Array<{ nama: string; predikat: string; keterangan: string }> | any;
+    sikapSpiritual: string | null;
+    deskripsiSpiritual: string | null;
+    sikapSosial: string | null;
+    deskripsiSosial: string | null;
+    ekskul: EkskulItem[];
     catatanWali: string;
     statusKenaikan?: string | null;
   } | null;
 }
 
+interface EkskulItem { nama: string; predikat: string; keterangan: string; }
+interface KelasSummary {
+  id: string;
+  nama: string;
+  tingkat: number;
+  wali?: { id: string; nama: string; nip?: string | null } | null;
+  _count?: { siswa?: number; riwayatSiswa?: number };
+}
+interface MapelSummary {
+  id: string;
+  nama: string;
+  kkm: number;
+  guru?: { nama: string } | null;
+}
+
 export default function WaliKelasPage() {
-  const [kelasData, setKelasData] = useState<any>(null);
-  const [kelasListAdmin, setKelasListAdmin] = useState<any[]>([]);
+  const [kelasData, setKelasData] = useState<KelasSummary | null>(null);
+  const [kelasListAdmin, setKelasListAdmin] = useState<KelasSummary[]>([]);
   const [selectedKelasId, setSelectedKelasId] = useState<string>('');
   const [isWali, setIsWali] = useState<boolean>(true);
   const [userRole, setUserRole] = useState<string>('GURU');
 
   const [semester, setSemester] = useState<string>('GANJIL');
-  const [tahunAjaran, setTahunAjaran] = useState<string>('2025/2026');
+  const [tahunAjaran, setTahunAjaran] = useState<string>('');
+  const [yearOptions, setYearOptions] = useState<string[]>([]);
 
   const [rekapList, setRekapList] = useState<SiswaRekap[]>([]);
-  const [mapelList, setMapelList] = useState<any[]>([]);
+  const [mapelList, setMapelList] = useState<MapelSummary[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -75,17 +90,26 @@ export default function WaliKelasPage() {
 
   // Modal Catatan Rapor
   const [editingSiswa, setEditingSiswa] = useState<SiswaRekap | null>(null);
-  const [formCatatan, setFormCatatan] = useState({
+  const [formCatatan, setFormCatatan] = useState<{
+    sakit: number;
+    izin: number;
+    alfa: number;
+    sikapSpiritual: string;
+    deskripsiSpiritual: string;
+    sikapSosial: string;
+    deskripsiSosial: string;
+    ekskul: EkskulItem[];
+    catatanWali: string;
+    statusKenaikan: string;
+  }>({
     sakit: 0,
     izin: 0,
     alfa: 0,
-    sikapSpiritual: 'A',
-    deskripsiSpiritual: 'Menunjukkan ketaatan beribadah dan sikap berdoa dengan sangat baik.',
-    sikapSosial: 'A',
-    deskripsiSosial: 'Menunjukkan sikap santun, disiplin, peduli, dan bertanggung jawab.',
-    ekskul: [
-      { nama: 'Pramuka (Wajib)', predikat: 'A', keterangan: 'Sangat aktif dalam kegiatan latihan mingguan' }
-    ],
+    sikapSpiritual: '',
+    deskripsiSpiritual: '',
+    sikapSosial: '',
+    deskripsiSosial: '',
+    ekskul: [],
     catatanWali: '',
     statusKenaikan: ''
   });
@@ -95,53 +119,15 @@ export default function WaliKelasPage() {
   const [printData, setPrintData] = useState<RaporData | null>(null);
   const [isLoadingPrint, setIsLoadingPrint] = useState<boolean>(false);
 
-  // 1. Cek info penugasan wali kelas
-  const fetchKelasBinaan = async () => {
-    setIsLoading(true);
-    try {
-      const token = localStorage.getItem('siakad_token');
-      const role = localStorage.getItem('siakad_role') || 'GURU';
-      setUserRole(role);
-
-      const res = await fetch('http://localhost:3001/api/wali/kelas-binaan', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (!res.ok) throw new Error('Gagal mengambil data penugasan wali kelas');
-      const data = await res.json();
-
-      setIsWali(data.isWali);
-      if (data.role === 'ADMIN') {
-        setKelasListAdmin(data.kelasList || []);
-        if (data.kelasList && data.kelasList.length > 0) {
-          const defaultId = data.kelasList[0].id;
-          setSelectedKelasId(defaultId);
-          fetchRekap(defaultId, semester, tahunAjaran);
-        }
-      } else if (data.kelas) {
-        setKelasData(data.kelas);
-        setSelectedKelasId(data.kelas.id);
-        fetchRekap(data.kelas.id, semester, tahunAjaran);
-      } else {
-        setIsWali(false);
-      }
-    } catch (err: any) {
-      setErrorMsg(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // 2. Ambil rekapitulasi nilai dan catatan rapor kelas
-  const fetchRekap = async (kelasId: string, sem: string, thn: string) => {
+  // Ambil rekapitulasi nilai dan catatan rapor kelas
+  const fetchRekap = useCallback(async (kelasId: string, sem: string, thn: string) => {
     if (!kelasId) return;
     setIsLoading(true);
     setErrorMsg('');
     try {
-      const token = localStorage.getItem('siakad_token');
-      const url = `http://localhost:3001/api/wali/rekap?kelasId=${kelasId}&semester=${sem}&tahunAjaran=${encodeURIComponent(thn)}`;
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` }
+      const url = `/api/wali/rekap?kelasId=${kelasId}&semester=${sem}&tahunAjaran=${encodeURIComponent(thn)}`;
+      const res = await apiFetch(url, {
+        headers: {}
       });
 
       if (!res.ok) {
@@ -153,22 +139,66 @@ export default function WaliKelasPage() {
       setRekapList(data.rekap || []);
       setMapelList(data.mapelList || []);
       setKelasData(data.kelas);
-    } catch (err: any) {
-      setErrorMsg(err.message);
+    } catch (err: unknown) {
+      setErrorMsg(errorMessage(err, 'Gagal memuat rekap kelas.'));
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  // Muat penugasan wali kelas untuk tahun ajaran terpilih.
+  const fetchKelasBinaan = useCallback(async (requestedYear?: string, selectedSemester = 'GANJIL') => {
+    setIsLoading(true);
+    try {
+      const yearsResponse = await apiFetch('/api/master/tahun-ajaran');
+      const years: Array<{ nama: string; aktif: boolean }> = yearsResponse.ok ? await yearsResponse.json() : [];
+      const activeYear = years.find((year) => year.aktif)?.nama || years[0]?.nama;
+      const year = requestedYear || activeYear;
+      if (years.length) setYearOptions(years.map((item) => item.nama));
+      if (year) setTahunAjaran(year);
+      if (!year) throw new Error('Tahun ajaran belum dibuat oleh administrator.');
+
+      const res = await apiFetch(`/api/wali/kelas-binaan?tahunAjaran=${encodeURIComponent(year)}`);
+      if (!res.ok) throw new Error('Gagal mengambil data penugasan wali kelas');
+      const data = await res.json();
+      setUserRole(String(data.role || 'GURU'));
+      setIsWali(data.isWali);
+
+      if (data.role === 'ADMIN') {
+        setKelasListAdmin(data.kelasList || []);
+        const defaultId = data.kelasList?.[0]?.id;
+        if (defaultId) {
+          setSelectedKelasId(defaultId);
+          await fetchRekap(defaultId, selectedSemester, year);
+        }
+      } else if (data.kelas) {
+        setKelasListAdmin(data.kelasList || [data.kelas]);
+        setKelasData(data.kelas);
+        setSelectedKelasId(data.kelas.id);
+        await fetchRekap(data.kelas.id, selectedSemester, year);
+      } else {
+        setIsWali(false);
+      }
+    } catch (err: unknown) {
+      setErrorMsg(errorMessage(err, 'Gagal memuat penugasan wali kelas.'));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchRekap]);
 
   useEffect(() => {
-    fetchKelasBinaan();
-  }, []);
+    queueMicrotask(() => { void fetchKelasBinaan(); });
+  }, [fetchKelasBinaan]);
 
   const handleFilterChange = (newSem: string, newThn: string, newKelasId?: string) => {
     const kId = newKelasId !== undefined ? newKelasId : selectedKelasId;
     setSemester(newSem);
     setTahunAjaran(newThn);
     if (newKelasId !== undefined) setSelectedKelasId(newKelasId);
+    if (newThn !== tahunAjaran) {
+      fetchKelasBinaan(newThn, newSem);
+      return;
+    }
     fetchRekap(kId, newSem, newThn);
   };
 
@@ -181,30 +211,26 @@ export default function WaliKelasPage() {
         sakit: existing.sakit || 0,
         izin: existing.izin || 0,
         alfa: existing.alfa || 0,
-        sikapSpiritual: existing.sikapSpiritual || 'A',
-        deskripsiSpiritual: existing.deskripsiSpiritual || 'Menunjukkan ketaatan beribadah dan sikap berdoa dengan sangat baik.',
-        sikapSosial: existing.sikapSosial || 'A',
-        deskripsiSosial: existing.deskripsiSosial || 'Menunjukkan sikap santun, disiplin, peduli, dan bertanggung jawab.',
-        ekskul: Array.isArray(existing.ekskul) && existing.ekskul.length > 0 ? existing.ekskul : [
-          { nama: 'Pramuka (Wajib)', predikat: 'A', keterangan: 'Aktif mengikuti kegiatan kepramukaan' }
-        ],
+        sikapSpiritual: existing.sikapSpiritual || '',
+        deskripsiSpiritual: existing.deskripsiSpiritual || '',
+        sikapSosial: existing.sikapSosial || '',
+        deskripsiSosial: existing.deskripsiSosial || '',
+        ekskul: Array.isArray(existing.ekskul) ? existing.ekskul : [],
         catatanWali: existing.catatanWali || '',
-        statusKenaikan: existing.statusKenaikan || (semester === 'GENAP' ? 'Naik ke Kelas Berikutnya' : '')
+        statusKenaikan: existing.statusKenaikan || ''
       });
     } else {
       setFormCatatan({
         sakit: 0,
         izin: 0,
         alfa: 0,
-        sikapSpiritual: 'A',
-        deskripsiSpiritual: 'Menunjukkan ketaatan beribadah dan sikap berdoa dengan sangat baik.',
-        sikapSosial: 'A',
-        deskripsiSosial: 'Menunjukkan sikap santun, disiplin, peduli, dan bertanggung jawab.',
-        ekskul: [
-          { nama: 'Pramuka (Wajib)', predikat: 'A', keterangan: 'Aktif mengikuti kegiatan kepramukaan' }
-        ],
-        catatanWali: 'Pertahankan prestasi belajar dan tingkatkan terus keaktifan dalam kegiatan belajar.',
-        statusKenaikan: semester === 'GENAP' ? 'Naik ke Kelas Berikutnya' : ''
+        sikapSpiritual: '',
+        deskripsiSpiritual: '',
+        sikapSosial: '',
+        deskripsiSosial: '',
+        ekskul: [],
+        catatanWali: '',
+        statusKenaikan: ''
       });
     }
   };
@@ -215,12 +241,10 @@ export default function WaliKelasPage() {
     if (!editingSiswa) return;
     setIsSavingCatatan(true);
     try {
-      const token = localStorage.getItem('siakad_token');
-      const res = await fetch('http://localhost:3001/api/wali/catatan', {
+      const res = await apiFetch('/api/wali/catatan', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
           siswaId: editingSiswa.siswaId,
@@ -239,8 +263,8 @@ export default function WaliKelasPage() {
       setSuccessMsg(`Catatan rapor untuk ${editingSiswa.nama} berhasil disimpan!`);
       setTimeout(() => setSuccessMsg(''), 3000);
       fetchRekap(selectedKelasId, semester, tahunAjaran);
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      alert(errorMessage(err, 'Gagal menyimpan catatan rapor.'));
     } finally {
       setIsSavingCatatan(false);
     }
@@ -272,15 +296,14 @@ export default function WaliKelasPage() {
   const handleOpenPrint = async (siswaId: string) => {
     setIsLoadingPrint(true);
     try {
-      const token = localStorage.getItem('siakad_token');
-      const res = await fetch(`http://localhost:3001/api/wali/rapor/${siswaId}?semester=${semester}&tahunAjaran=${encodeURIComponent(tahunAjaran)}`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const res = await apiFetch(`/api/wali/rapor/${siswaId}?semester=${semester}&tahunAjaran=${encodeURIComponent(tahunAjaran)}`, {
+        headers: {}
       });
       if (!res.ok) throw new Error('Gagal mengambil lembar rapor siswa');
       const data = await res.json();
       setPrintData(data);
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      alert(errorMessage(err, 'Gagal membuka rapor.'));
     } finally {
       setIsLoadingPrint(false);
     }
@@ -331,7 +354,7 @@ export default function WaliKelasPage() {
 
         {/* CONTROLS (Semester, Tahun, Kelas) */}
         <div className="flex flex-wrap items-center gap-2">
-          {userRole === 'ADMIN' && kelasListAdmin.length > 0 && (
+          {(userRole === 'ADMIN' || kelasListAdmin.length > 1) && kelasListAdmin.length > 0 && (
             <select
               value={selectedKelasId}
               onChange={(e) => handleFilterChange(semester, tahunAjaran, e.target.value)}
@@ -357,8 +380,7 @@ export default function WaliKelasPage() {
             onChange={(e) => handleFilterChange(semester, e.target.value)}
             className="h-10 px-3 rounded-full bg-bg-secondary text-label text-xs font-semibold border border-separator focus:ring-2 focus:ring-accent outline-none"
           >
-            <option value="2025/2026">T.A. 2025/2026</option>
-            <option value="2026/2027">T.A. 2026/2027</option>
+            {yearOptions.map((year) => <option key={year} value={year}>T.A. {year}</option>)}
           </select>
 
           <button
@@ -471,9 +493,9 @@ export default function WaliKelasPage() {
               ) : (
                 filteredRekap.map((item) => {
                   const catatan = item.catatanRapor;
-                  const presensiText = catatan 
-                    ? `${catatan.sakit} / ${catatan.izin} / ${catatan.alfa}` 
-                    : '0 / 0 / 0';
+                  const presensiText = catatan
+                    ? `${catatan.sakit} / ${catatan.izin} / ${catatan.alfa}`
+                    : 'Belum dicatat';
                   const hasCatatan = !!catatan?.catatanWali;
 
                   return (
@@ -524,11 +546,12 @@ export default function WaliKelasPage() {
 
                           <button
                             onClick={() => handleOpenPrint(item.siswaId)}
+                            disabled={isLoadingPrint}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent/15 hover:bg-accent text-accent hover:text-white text-xs font-semibold transition-colors"
                             title="Cetak Lembar Rapor Siswa"
                           >
                             <Printer size={14} />
-                            <span>Cetak</span>
+                            <span>{isLoadingPrint ? 'Memuat…' : 'Cetak'}</span>
                           </button>
                         </div>
                       </td>
@@ -619,6 +642,7 @@ export default function WaliKelasPage() {
                       onChange={(e) => setFormCatatan({ ...formCatatan, sikapSpiritual: e.target.value })}
                       className="h-8 px-2.5 rounded-lg bg-bg text-label text-xs font-bold outline-none border border-separator/40"
                     >
+                      <option value="">Belum dinilai</option>
                       <option value="A">A (Sangat Baik)</option>
                       <option value="B">B (Baik)</option>
                       <option value="C">C (Cukup)</option>
@@ -643,6 +667,7 @@ export default function WaliKelasPage() {
                       onChange={(e) => setFormCatatan({ ...formCatatan, sikapSosial: e.target.value })}
                       className="h-8 px-2.5 rounded-lg bg-bg text-label text-xs font-bold outline-none border border-separator/40"
                     >
+                      <option value="">Belum dinilai</option>
                       <option value="A">A (Sangat Baik)</option>
                       <option value="B">B (Baik)</option>
                       <option value="C">C (Cukup)</option>

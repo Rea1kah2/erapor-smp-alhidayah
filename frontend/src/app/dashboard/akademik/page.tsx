@@ -1,16 +1,29 @@
 // frontend/src/app/dashboard/akademik/page.tsx
 'use client';
-import { useState, useEffect } from 'react';
+import { apiFetch } from "@/lib/api";
+import { errorMessage } from '@/lib/errors';
+import { useState, useEffect, useCallback } from 'react';
 import { Plus, X, AlertCircle, Inbox, School, BookOpen, Pencil, Trash2, CheckCircle2, RefreshCw } from 'lucide-react';
 
 interface Guru { id: string; nama: string; }
 interface Kelas { id: string; nama: string; tingkat: number; waliId?: string | null; wali: { nama: string } | null; }
 interface Mapel { id: string; nama: string; kkm: number; guruId?: string | null; guru: { nama: string } | null; }
+interface AcademicYear { id: string; nama: string; aktif: boolean; }
+interface TeachingAssignment { id: string; guru: Guru; mapel: Mapel; kelas: Kelas; }
+interface Student { id: string; nama: string; nisn: string; kelasId: string | null; }
 
 export default function DataAkademik() {
   const [kelasList, setKelasList] = useState<Kelas[]>([]);
   const [mapelList, setMapelList] = useState<Mapel[]>([]);
   const [guruList, setGuruList] = useState<Guru[]>([]);
+  const [yearList, setYearList] = useState<AcademicYear[]>([]);
+  const [selectedYear, setSelectedYear] = useState('');
+  const [newYear, setNewYear] = useState('');
+  const [teachingAssignments, setTeachingAssignments] = useState<TeachingAssignment[]>([]);
+  const [studentList, setStudentList] = useState<Student[]>([]);
+  const [enrollmentForm, setEnrollmentForm] = useState({ siswaId: '', kelasId: '' });
+  const [assignmentForm, setAssignmentForm] = useState({ kelasId: '', mapelId: '', guruId: '' });
+  const [homeroomForm, setHomeroomForm] = useState({ kelasId: '', guruId: '' });
   const [isLoading, setIsLoading] = useState(true);
 
   // Notifications
@@ -32,29 +45,123 @@ export default function DataAkademik() {
   const [deletingItem, setDeletingItem] = useState<{ type: 'kelas' | 'mapel'; id: string; name: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const fetchData = async () => {
-    setIsLoading(true);
+  const fetchData = useCallback(async () => {
     try {
-      const token = localStorage.getItem('siakad_token');
-      const headers = { Authorization: `Bearer ${token}` };
+      const headers = {};
 
-      const [resKelas, resMapel, resGuru] = await Promise.all([
-        fetch('http://localhost:3001/api/master/kelas', { headers }),
-        fetch('http://localhost:3001/api/master/mapel', { headers }),
-        fetch('http://localhost:3001/api/master/guru', { headers })
+      const [resKelas, resMapel, resGuru, resYear] = await Promise.all([
+        apiFetch(`/api/master/kelas${selectedYear ? `?tahunAjaran=${encodeURIComponent(selectedYear)}` : ''}`, { headers }),
+        apiFetch('/api/master/mapel', { headers }),
+        apiFetch('/api/master/guru', { headers }),
+        apiFetch('/api/master/tahun-ajaran', { headers })
       ]);
 
       if (resKelas.ok) setKelasList(await resKelas.json());
       if (resMapel.ok) setMapelList(await resMapel.json());
       if (resGuru.ok) setGuruList(await resGuru.json());
-    } catch (error) {
+      if (resYear.ok) {
+        const years: AcademicYear[] = await resYear.json();
+        setYearList(years);
+        if (!selectedYear) setSelectedYear(years.find((year) => year.aktif)?.nama || years[0]?.nama || '');
+      }
+    } catch {
       console.error('Gagal mengambil data akademik');
     } finally {
       setIsLoading(false);
     }
+  }, [selectedYear]);
+
+  useEffect(() => {
+    queueMicrotask(() => { void fetchData(); });
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (!selectedYear) return;
+    const loadYearData = async () => {
+      const headers = {};
+      const [classRes, assignmentRes, studentRes] = await Promise.all([
+        apiFetch(`/api/master/kelas?tahunAjaran=${encodeURIComponent(selectedYear)}`, { headers }),
+        apiFetch(`/api/master/penugasan?tahunAjaran=${encodeURIComponent(selectedYear)}`, { headers }),
+        apiFetch(`/api/master/siswa?tahunAjaran=${encodeURIComponent(selectedYear)}`, { headers })
+      ]);
+      if (classRes.ok) setKelasList(await classRes.json());
+      if (studentRes.ok) setStudentList(await studentRes.json());
+      if (assignmentRes.ok) {
+        const data = await assignmentRes.json();
+        setTeachingAssignments(data.kelasMapel || []);
+      }
+    };
+    loadYearData().catch(() => setErrorMsg('Gagal memuat penugasan tahun ajaran.'));
+  }, [selectedYear]);
+
+  const createAcademicYear = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    try {
+      const response = await apiFetch('/api/master/tahun-ajaran', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', },
+        body: JSON.stringify({ nama: newYear })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Gagal membuat tahun ajaran.');
+      setNewYear('');
+      setSelectedYear(data.data.nama);
+      await fetchData();
+      setSuccessMsg('Tahun ajaran berhasil dibuat. Aktifkan tahun tersebut sebelum mengisi data kelasnya.');
+    } catch (error) { setErrorMsg(error instanceof Error ? error.message : 'Gagal membuat tahun ajaran.'); }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  const activateAcademicYear = async () => {
+    const year = yearList.find((item) => item.nama === selectedYear);
+    if (!year) return;
+    const response = await apiFetch(`/api/master/tahun-ajaran/${year.id}/aktif`, {
+      method: 'PUT', headers: {}
+    });
+    if (!response.ok) { setErrorMsg('Gagal mengaktifkan tahun ajaran.'); return; }
+    await fetchData();
+    setSuccessMsg(`${year.nama} ditetapkan sebagai tahun ajaran aktif.`);
+  };
+
+  const saveTeachingAssignment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const response = await apiFetch('/api/master/penugasan/mapel', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', },
+      body: JSON.stringify({ ...assignmentForm, tahunAjaran: selectedYear })
+    });
+    const data = await response.json();
+    if (!response.ok) { setErrorMsg(data.error || 'Gagal menyimpan penugasan mapel.'); return; }
+    setSuccessMsg('Penugasan guru mata pelajaran berhasil disimpan.');
+    setAssignmentForm((previous) => ({ ...previous, mapelId: '', guruId: '' }));
+    const responseList = await apiFetch(`/api/master/penugasan?tahunAjaran=${encodeURIComponent(selectedYear)}`, { headers: {} });
+    if (responseList.ok) setTeachingAssignments((await responseList.json()).kelasMapel || []);
+  };
+
+  const saveHomeroomAssignment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const response = await apiFetch('/api/master/penugasan/wali', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', },
+      body: JSON.stringify({ ...homeroomForm, tahunAjaran: selectedYear })
+    });
+    const data = await response.json();
+    if (!response.ok) { setErrorMsg(data.error || 'Gagal menyimpan wali kelas.'); return; }
+    setSuccessMsg('Penugasan wali kelas berhasil disimpan.');
+    setHomeroomForm({ kelasId: '', guruId: '' });
+    fetchData();
+  };
+
+  const saveStudentEnrollment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const response = await apiFetch(`/api/master/siswa/${enrollmentForm.siswaId}/kelas`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kelasId: enrollmentForm.kelasId, tahunAjaran: selectedYear })
+    });
+    const data = await response.json();
+    if (!response.ok) { setErrorMsg(data.error || 'Gagal menyimpan riwayat kelas siswa.'); return; }
+    setSuccessMsg(`Riwayat kelas ${selectedYear} berhasil disimpan.`);
+    const responseList = await apiFetch(`/api/master/siswa?tahunAjaran=${encodeURIComponent(selectedYear)}`);
+    if (responseList.ok) setStudentList(await responseList.json());
+    setEnrollmentForm({ siswaId: '', kelasId: '' });
+  };
 
   // Handlers Kelas
   const openAddKelas = () => {
@@ -76,16 +183,15 @@ export default function DataAkademik() {
     setIsSubmitting(true);
     setErrorMsg('');
     try {
-      const token = localStorage.getItem('siakad_token');
       const url = editingKelasId
-        ? `http://localhost:3001/api/master/kelas/${editingKelasId}`
-        : 'http://localhost:3001/api/master/kelas';
+        ? `/api/master/kelas/${editingKelasId}`
+        : '/api/master/kelas';
       const method = editingKelasId ? 'PUT' : 'POST';
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(formKelas),
+        headers: { 'Content-Type': 'application/json', },
+        body: JSON.stringify({ ...formKelas, tahunAjaran: selectedYear }),
       });
 
       const data = await res.json();
@@ -96,8 +202,8 @@ export default function DataAkademik() {
       setSuccessMsg(editingKelasId ? 'Kelas berhasil diperbarui!' : 'Kelas berhasil ditambahkan!');
       setTimeout(() => setSuccessMsg(''), 3000);
       fetchData();
-    } catch (err: any) {
-      setErrorMsg(err.message);
+    } catch (err: unknown) {
+      setErrorMsg(errorMessage(err, 'Gagal menyimpan kelas.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -123,15 +229,14 @@ export default function DataAkademik() {
     setIsSubmitting(true);
     setErrorMsg('');
     try {
-      const token = localStorage.getItem('siakad_token');
       const url = editingMapelId
-        ? `http://localhost:3001/api/master/mapel/${editingMapelId}`
-        : 'http://localhost:3001/api/master/mapel';
+        ? `/api/master/mapel/${editingMapelId}`
+        : '/api/master/mapel';
       const method = editingMapelId ? 'PUT' : 'POST';
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', },
         body: JSON.stringify(formMapel),
       });
 
@@ -143,8 +248,8 @@ export default function DataAkademik() {
       setSuccessMsg(editingMapelId ? 'Mapel berhasil diperbarui!' : 'Mapel berhasil ditambahkan!');
       setTimeout(() => setSuccessMsg(''), 3000);
       fetchData();
-    } catch (err: any) {
-      setErrorMsg(err.message);
+    } catch (err: unknown) {
+      setErrorMsg(errorMessage(err, 'Gagal menyimpan mata pelajaran.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -157,12 +262,11 @@ export default function DataAkademik() {
     setErrorMsg('');
 
     try {
-      const token = localStorage.getItem('siakad_token');
-      const url = `http://localhost:3001/api/master/${deletingItem.type}/${deletingItem.id}`;
+      const url = `/api/master/${deletingItem.type}/${deletingItem.id}`;
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
+        headers: {}
       });
 
       const data = await res.json();
@@ -172,8 +276,8 @@ export default function DataAkademik() {
       setSuccessMsg(`Data ${deletingItem.type === 'kelas' ? 'kelas' : 'mata pelajaran'} berhasil dihapus!`);
       setTimeout(() => setSuccessMsg(''), 3000);
       fetchData();
-    } catch (err: any) {
-      setErrorMsg(err.message);
+    } catch (err: unknown) {
+      setErrorMsg(errorMessage(err, 'Gagal menghapus data akademik.'));
     } finally {
       setIsDeleting(false);
     }
@@ -201,6 +305,53 @@ export default function DataAkademik() {
           <p className="text-sm font-medium">{errorMsg}</p>
         </div>
       )}
+
+      <section className="rounded-[24px] bg-bg-secondary p-5 sm:p-6 shadow-[0_4px_16px_rgba(0,0,0,0.08)] flex flex-col gap-5">
+        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+          <div className="flex flex-col gap-2">
+            <h2 className="text-lg font-semibold">Tahun Ajaran dan Penugasan</h2>
+            <label className="text-xs text-label-secondary" htmlFor="academic-year">Tahun ajaran yang dikelola</label>
+            <select id="academic-year" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="h-10 min-w-56 px-3 rounded-xl bg-fill text-label">
+              {yearList.map((year) => <option key={year.id} value={year.nama}>{year.nama}{year.aktif ? ' (Aktif)' : ''}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <form onSubmit={createAcademicYear} className="flex gap-2">
+              <input value={newYear} onChange={(e) => setNewYear(e.target.value)} placeholder="2026/2027" pattern="[0-9]{4}/[0-9]{4}" required className="h-10 w-36 px-3 rounded-xl bg-fill text-sm" />
+              <button className="h-10 px-4 rounded-full bg-accent text-white text-sm font-semibold">Tambah Tahun</button>
+            </form>
+            {selectedYear && !yearList.find((year) => year.nama === selectedYear)?.aktif && (
+              <button onClick={activateAcademicYear} className="h-10 px-4 rounded-full border border-accent text-accent text-sm font-semibold">Jadikan Aktif</button>
+            )}
+          </div>
+        </div>
+
+        {selectedYear && <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 border-t border-separator/40 pt-5">
+          <form onSubmit={saveTeachingAssignment} className="flex flex-col sm:flex-row sm:items-end gap-3">
+            <div className="flex-1"><label className="block mb-1 text-xs text-label-secondary">Kelas</label><select required value={assignmentForm.kelasId} onChange={(e) => setAssignmentForm({ ...assignmentForm, kelasId: e.target.value })} className="h-10 w-full px-3 rounded-xl bg-fill"><option value="">Pilih kelas</option>{kelasList.map((kelas) => <option key={kelas.id} value={kelas.id}>{kelas.nama}</option>)}</select></div>
+            <div className="flex-1"><label className="block mb-1 text-xs text-label-secondary">Mata pelajaran</label><select required value={assignmentForm.mapelId} onChange={(e) => setAssignmentForm({ ...assignmentForm, mapelId: e.target.value })} className="h-10 w-full px-3 rounded-xl bg-fill"><option value="">Pilih mapel</option>{mapelList.map((mapel) => <option key={mapel.id} value={mapel.id}>{mapel.nama}</option>)}</select></div>
+            <div className="flex-1"><label className="block mb-1 text-xs text-label-secondary">Guru pengampu</label><select required value={assignmentForm.guruId} onChange={(e) => setAssignmentForm({ ...assignmentForm, guruId: e.target.value })} className="h-10 w-full px-3 rounded-xl bg-fill"><option value="">Pilih guru</option>{guruList.map((guru) => <option key={guru.id} value={guru.id}>{guru.nama}</option>)}</select></div>
+            <button className="h-10 px-4 rounded-full bg-accent text-white text-sm font-semibold">Simpan Mapel</button>
+          </form>
+          <form onSubmit={saveHomeroomAssignment} className="flex flex-col sm:flex-row sm:items-end gap-3">
+            <div className="flex-1"><label className="block mb-1 text-xs text-label-secondary">Kelas wali</label><select required value={homeroomForm.kelasId} onChange={(e) => setHomeroomForm({ ...homeroomForm, kelasId: e.target.value })} className="h-10 w-full px-3 rounded-xl bg-fill"><option value="">Pilih kelas</option>{kelasList.map((kelas) => <option key={kelas.id} value={kelas.id}>{kelas.nama}</option>)}</select></div>
+            <div className="flex-1"><label className="block mb-1 text-xs text-label-secondary">Wali kelas</label><select required value={homeroomForm.guruId} onChange={(e) => setHomeroomForm({ ...homeroomForm, guruId: e.target.value })} className="h-10 w-full px-3 rounded-xl bg-fill"><option value="">Pilih guru</option>{guruList.map((guru) => <option key={guru.id} value={guru.id}>{guru.nama}</option>)}</select></div>
+            <button className="h-10 px-4 rounded-full border border-accent text-accent text-sm font-semibold">Simpan Wali</button>
+          </form>
+          <form onSubmit={saveStudentEnrollment} className="flex flex-col sm:flex-row sm:items-end gap-3">
+            <div className="flex-1"><label className="block mb-1 text-xs text-label-secondary">Siswa</label><select required value={enrollmentForm.siswaId} onChange={(e) => setEnrollmentForm({ ...enrollmentForm, siswaId: e.target.value })} className="h-10 w-full px-3 rounded-xl bg-fill"><option value="">Pilih siswa</option>{studentList.map((student) => <option key={student.id} value={student.id}>{student.nama} ({student.nisn})</option>)}</select></div>
+            <div className="flex-1"><label className="block mb-1 text-xs text-label-secondary">Kelas {selectedYear}</label><select required value={enrollmentForm.kelasId} onChange={(e) => setEnrollmentForm({ ...enrollmentForm, kelasId: e.target.value })} className="h-10 w-full px-3 rounded-xl bg-fill"><option value="">Pilih kelas</option>{kelasList.map((kelas) => <option key={kelas.id} value={kelas.id}>{kelas.nama}</option>)}</select></div>
+            <button className="h-10 px-4 rounded-full border border-accent text-accent text-sm font-semibold">Simpan Riwayat Kelas</button>
+          </form>
+        </div>}
+
+        <div className="border-t border-separator/40 pt-4">
+          <h3 className="mb-2 text-sm font-semibold">Daftar pengampu {selectedYear}</h3>
+          {teachingAssignments.length === 0 ? <p className="text-sm text-label-secondary">Belum ada penugasan mapel untuk tahun ajaran ini.</p> : (
+            <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="text-label-secondary"><th className="py-2">Kelas</th><th>Mapel</th><th>Guru</th></tr></thead><tbody>{teachingAssignments.map((assignment) => <tr key={assignment.id} className="border-t border-separator/30"><td className="py-2">{assignment.kelas.nama}</td><td>{assignment.mapel.nama}</td><td>{assignment.guru.nama}</td></tr>)}</tbody></table></div>
+          )}
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Kolom Tabel Kelas */}

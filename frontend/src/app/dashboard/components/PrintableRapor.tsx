@@ -45,13 +45,14 @@ export interface RaporData {
     totalMataPelajaran: number;
   };
   catatanRapor: {
+    tersedia: boolean;
     sakit: number;
     izin: number;
     alfa: number;
-    sikapSpiritual: string;
-    deskripsiSpiritual: string;
-    sikapSosial: string;
-    deskripsiSosial: string;
+    sikapSpiritual: string | null;
+    deskripsiSpiritual: string | null;
+    sikapSosial: string | null;
+    deskripsiSosial: string | null;
     ekskul: Array<{ nama: string; predikat: string; keterangan: string }>;
     catatanWali: string;
     statusKenaikan?: string | null;
@@ -236,19 +237,19 @@ export default function PrintableRapor({ data, onClose }: PrintableRaporProps) {
               <tr>
                 <td className="border border-black p-2 font-semibold">1. Sikap Spiritual</td>
                 <td className="border border-black p-2 text-center font-bold text-sm">
-                  {data.catatanRapor.sikapSpiritual || 'A'}
+                  {data.catatanRapor.sikapSpiritual || '-'}
                 </td>
                 <td className="border border-black p-2 leading-snug">
-                  {data.catatanRapor.deskripsiSpiritual || 'Selalu taat dalam menjalankan ibadah, berperilaku syukur, dan menunjukkan sikap toleransi beragama yang sangat baik.'}
+                  {data.catatanRapor.deskripsiSpiritual || 'Belum ada penilaian.'}
                 </td>
               </tr>
               <tr>
                 <td className="border border-black p-2 font-semibold">2. Sikap Sosial</td>
                 <td className="border border-black p-2 text-center font-bold text-sm">
-                  {data.catatanRapor.sikapSosial || 'A'}
+                  {data.catatanRapor.sikapSosial || '-'}
                 </td>
                 <td className="border border-black p-2 leading-snug">
-                  {data.catatanRapor.deskripsiSosial || 'Sangat santun, disiplin mematuhi tata tertib sekolah, bertanggung jawab dalam tugas, dan aktif bergotong royong.'}
+                  {data.catatanRapor.deskripsiSosial || 'Belum ada penilaian.'}
                 </td>
               </tr>
             </tbody>
@@ -285,7 +286,7 @@ export default function PrintableRapor({ data, onClose }: PrintableRaporProps) {
                 ) : (
                   <tr>
                     <td colSpan={4} className="border border-black p-2 text-center text-gray-500 italic">
-                      Tidak mengikuti kegiatan ekstrakurikuler khusus
+                      {data.catatanRapor.tersedia ? 'Tidak ada kegiatan ekstrakurikuler yang dicatat.' : 'Belum ada catatan ekstrakurikuler.'}
                     </td>
                   </tr>
                 )}
@@ -309,15 +310,15 @@ export default function PrintableRapor({ data, onClose }: PrintableRaporProps) {
               <tbody>
                 <tr>
                   <td className="border border-black p-1 font-medium">Sakit (S)</td>
-                  <td className="border border-black p-1 text-center font-mono">{data.catatanRapor.sakit} hari</td>
+                  <td className="border border-black p-1 text-center font-mono">{data.catatanRapor.tersedia ? `${data.catatanRapor.sakit} hari` : '-'}</td>
                 </tr>
                 <tr>
                   <td className="border border-black p-1 font-medium">Izin (I)</td>
-                  <td className="border border-black p-1 text-center font-mono">{data.catatanRapor.izin} hari</td>
+                  <td className="border border-black p-1 text-center font-mono">{data.catatanRapor.tersedia ? `${data.catatanRapor.izin} hari` : '-'}</td>
                 </tr>
                 <tr>
                   <td className="border border-black p-1 font-medium">Tanpa Keterangan / Alfa (A)</td>
-                  <td className="border border-black p-1 text-center font-mono">{data.catatanRapor.alfa} hari</td>
+                  <td className="border border-black p-1 text-center font-mono">{data.catatanRapor.tersedia ? `${data.catatanRapor.alfa} hari` : '-'}</td>
                 </tr>
               </tbody>
             </table>
@@ -328,7 +329,7 @@ export default function PrintableRapor({ data, onClose }: PrintableRaporProps) {
         <div className="mt-5 border border-black p-3 font-sans text-[11px]">
           <h5 className="font-bold text-[12px] uppercase mb-1">Catatan Wali Kelas:</h5>
           <p className="italic text-gray-800 leading-relaxed min-h-[36px]">
-            "{data.catatanRapor.catatanWali || 'Tingkatkan terus semangat belajar dan pertahankan prestasi yang sudah diraih dengan baik.'}"
+            {data.catatanRapor.catatanWali ? `“${data.catatanRapor.catatanWali}”` : 'Belum ada catatan.'}
           </p>
           {data.semester === 'GENAP' && data.catatanRapor.statusKenaikan && (
             <div className="mt-2 pt-2 border-t border-dashed border-gray-400 font-bold text-[12px]">

@@ -174,6 +174,7 @@ Database terdiri dari tabel-tabel terelasi berikut:
    - nama        : String (Contoh: "VII-A", "VIII-B", "IX-1")
    - tingkat     : Int (7, 8, 9 - Jenjang SMP)
    - waliId      : String (Foreign Key -> Guru.id, Unique, Nullable)
+   - tahunAjaranId: String (Foreign Key -> TahunAjaran.id; satu kelas per tahun)
    - siswa       : Relasi 1-to-Many ke Siswa
 
 6. Mapel
@@ -211,17 +212,34 @@ Database terdiri dari tabel-tabel terelasi berikut:
    - Constraint         : @@unique([siswaId, semester, tahunAjaran])
 
 
+7A. RIWAYAT AKADEMIK (IMPLEMENTASI TERKINI)
+   • TahunAjaran: daftar tahun ajaran dengan maksimal satu tahun aktif.
+   • RiwayatKelas: snapshot kelas setiap siswa untuk satu tahun ajaran;
+     perpindahan kelas pada tahun baru tidak menghapus penempatan lama.
+   • PenugasanWali: wali kelas per kelas dan tahun ajaran.
+   • PenugasanMapel: guru pengampu per mapel, kelas, dan tahun ajaran.
+   • Kelas adalah rombongan belajar tahunan yang ditautkan ke TahunAjaran.
+   • Buat rombongan belajar baru setiap tahun ajaran; kelas yang memiliki
+     riwayat tidak dapat dihapus atau diganti nama/tingkatnya.
+   • Data skema lama tidak menyimpan riwayat kelas atau penugasan per kelas.
+     Backfill hanya menyimpulkan penempatan/penugasan aktif dari data lama;
+     tahun-tahun sebelumnya harus direkonsiliasi oleh administrator.
+   • Kelas untuk tahun baru dibuat sebagai rombongan baru agar nama dan tingkat
+     kelas tahun sebelumnya tidak tertimpa. Riwayat siswa dan penugasan lama
+     dipertahankan; jangan menghapus database atau menjalankan reset.
+
 8. DAFTAR ENDPOINT BACKEND (REST API SPECIFICATION)
 --------------------------------------------------------------------------------
-Semua endpoint selain autentikasi wajib menyertakan Header:
-Authorization: Bearer <TOKEN_JWT>
+Semua endpoint selain autentikasi memerlukan sesi login melalui cookie HttpOnly.
+Header Authorization Bearer tetap didukung untuk integrasi non-browser.
 
 A. Autentikasi (`/api/auth`)
    • POST /api/auth/login
      Body: { email, password }
-     Response: { token, role, user }
+     Response: { role }; token sesi dikirim sebagai cookie HttpOnly.
    • GET  /api/auth/me
      Response: Detail profil pengguna login beserta relasi perannya.
+   Pendaftaran publik dan pembuatan admin melalui API publik ditutup; akun dibuat admin.
 
 B. Master Data Administrator (`/api/master`)
    • GET  /api/master/stats        -> Statistik total guru, siswa, kelas, mapel.
@@ -233,6 +251,12 @@ B. Master Data Administrator (`/api/master`)
    • POST /api/master/kelas        -> Tambah kelas (tingkat 7, 8, 9 & pilih wali).
    • GET  /api/master/mapel        -> Daftar mata pelajaran beserta guru pengampu & KKM.
    • POST /api/master/mapel        -> Tambah mata pelajaran & tentukan KKM.
+   • GET/POST /api/master/tahun-ajaran -> Daftar dan buat tahun ajaran.
+   • GET /api/master/penugasan    -> Daftar penugasan untuk tahun ajaran.
+   • POST /api/master/penugasan/mapel -> Tugaskan guru-mapel-kelas-tahun.
+   • POST /api/master/penugasan/wali  -> Tugaskan wali kelas per kelas-tahun.
+   • POST /api/master/siswa/:id/kelas -> Simpan riwayat kelas siswa.
+   • POST /api/master/ortu       -> Admin membuat akun orang tua dan tautan anak.
 
 C. Pengolahan Nilai (`/api/nilai`)
    • POST /api/nilai               -> Simpan / update skor nilai (TUGAS/UTS/UAS).
@@ -305,62 +329,118 @@ A. Prasyarat Sistem:
 B. Langkah Menjalankan Backend:
    1. Buka terminal dan arahkan ke folder backend:
       $ cd backend
-   2. Pastikan file `.env` sudah terisi dengan kredensial database & JWT:
-      DATABASE_URL="postgresql://neondb_owner:npg_1T2XoWJvDrcL@ep-weathered-snow-a1w1a2qf-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
-      JWT_SECRET="rahasia_siakad_smp_alhidayah_super_aman"
-   3. Sinkronkan skema database Prisma:
-      $ npx prisma db push
-   4. Jalankan server backend (development mode):
+   2. Dari folder `backend`, salin `.env.example` menjadi `.env`, lalu isi nilai rahasia
+      sendiri. Jangan commit `.env`; gunakan password DB yang telah dirotasi dan
+      JWT_SECRET acak minimal 32 karakter. ADMIN_EMAIL dan ADMIN_PASSWORD (min.
+      12 karakter) digunakan sekali saat bootstrap admin.
+      Isi SCHOOL_NAME, SCHOOL_FOUNDATION, SCHOOL_NPSN, SCHOOL_ADDRESS, SCHOOL_PHONE,
+      PRINCIPAL_NAME, PRINCIPAL_NIP, RAPOR_DATE_GANJIL, dan RAPOR_DATE_GENAP dengan
+      data resmi sekolah sebelum mencetak rapor.
+   3. Instal dependensi: `$ npm install`. Instalasi backend dan perintah
+      `npm run dev` akan membuat Prisma Client dari `prisma/schema.prisma`.
+      Jika editor masih menandai `prisma.penugasanMapel`, `prisma.penugasanWali`,
+      atau `prisma.riwayatKelas` sebagai properti yang tidak ada, jalankan:
+       $ npm run prisma:generate
+       $ npm run typecheck
+       $ npm run prisma:validate
+       $ npm run test
+      Pastikan editor membuka folder `backend` sebagai proyek TypeScript; setelah
+      generate, muat ulang TypeScript Server pada editor bila tipenya masih lama.
+   4. Untuk frontend, jalankan dari folder `frontend`:
+       $ npm run lint
+       $ npm run typecheck
+       $ npm run build
+   5. Terapkan skema hanya di database staging terlebih dahulu. Buat backup,
+      tinjau perubahan skema, lalu jalankan:
+       $ npx prisma db push
+      Ulangi pada database utama hanya setelah alur staging lulus pemeriksaan.
+   6. Buat admin pertama secara terkontrol:
+      $ npx tsx prisma/seed.ts
+      (set ADMIN_EMAIL dan ADMIN_PASSWORD pada environment; kata sandi minimal 12 karakter)
+   7. Tinjau rencana backfill tanpa mengubah database:
+      $ npm run backfill:academic-history
+      Terapkan hanya setelah backup, hasil dry-run ditinjau, dan data kelas/guru
+      tahun aktif dikonfirmasi:
+      $ npm run backfill:academic-history:apply
+   8. Jalankan server backend (development mode):
       $ npm run dev
-   5. Server akan aktif di: http://localhost:3001
+   9. Server akan aktif di: http://localhost:3001
+      Pemeriksaan liveness (proses hidup, tanpa query database):
+       GET http://localhost:3001/api/health/live
+      Pemeriksaan readiness (database dapat dijangkau):
+       GET http://localhost:3001/api/health/ready
+      Endpoint ping juga melakukan query jumlah user:
+       GET http://localhost:3001/api/ping
 
 C. Langkah Menjalankan Frontend:
    1. Buka tab terminal baru dan arahkan ke folder frontend:
       $ cd frontend
-   2. Instal paket dependensi (jika belum pernah diinstal):
+   2. Dari folder `frontend`, salin `.env.example` menjadi `.env.local` jika API tidak
+      berada di `http://localhost:3001`; atur `NEXT_PUBLIC_API_BASE_URL`.
+   3. Instal paket dependensi (jika belum pernah diinstal):
       $ npm install
-   3. Jalankan server frontend:
+   4. Jalankan server frontend:
       $ npm run dev
-   4. Buka aplikasi pada browser:
+   5. Buka aplikasi pada browser:
       http://localhost:3000
 
-D. Akun Login Default Pengujian (Seeder):
-   • Role Administrator:
-     - Email    : admin@sekolah.com
-     - Password : admin123
+D. Keamanan dan akun awal:
+   • Kredensial admin berasal dari ADMIN_EMAIL dan ADMIN_PASSWORD saat menjalankan seeder;
+     tidak ada kata sandi default. JWT_SECRET wajib diatur dan minimal 32 karakter.
+   • Set FRONTEND_ORIGINS untuk membatasi origin yang boleh mengakses API. Login
+     memakai cookie HttpOnly; akun guru/siswa/orang tua dibuat oleh administrator.
+     Untuk frontend Vercel dan backend Render yang berbeda site, set
+     `COOKIE_SAME_SITE=none` pada backend production agar cookie lintas site
+     dikirim browser. Nilai ini wajib memakai HTTPS dan Secure cookie.
+   • Nilai kredensial yang pernah tercantum dalam dokumentasi Git harus dianggap
+     terekspos dan dirotasi sebelum sistem digunakan kembali.
+
+E. Deployment staging gratis yang direkomendasikan:
+   • Neon: buat project/branch database staging terpisah dari data produksi. Gunakan
+     pooled `DATABASE_URL` pada backend dan simpan secret hanya pada environment
+     platform. Direct URL dipakai untuk administrasi/migrasi bila diperlukan.
+   • Render: buat Web Service dengan Root Directory `backend`, Build Command
+     `npm ci && npm run build`, Start Command `npm start`, dan Health Check
+     `/api/health/ready`. Free service dapat sleep/cold-start dan hanya untuk staging.
+   • Vercel: buat project dengan Root Directory `frontend`, lalu set
+     `NEXT_PUBLIC_API_BASE_URL` ke URL HTTPS backend Render. Tambahkan URL Vercel
+     tersebut ke `FRONTEND_ORIGINS` Render tanpa wildcard.
+   • Setelah deploy, uji `/api/health/live`, `/api/health/ready`, login, refresh,
+     logout, cookie HttpOnly, CORS credentials, dan seluruh role sebelum memakai
+     data resmi.
 
 
-11. HASIL PENGUJIAN BLACK BOX (BLACK BOX TESTING MATRIX)
+11. SKENARIO PENGUJIAN BLACK BOX (BELUM DIVERIFIKASI PADA VERSI KODE INI)
 --------------------------------------------------------------------------------
 Dokumentasi pengujian fungsionalitas input/output sistem untuk Laporan Skripsi Bab 4:
 
 +-----------+------------------------+-------------------------------+---------------------------------+--------+
 | Kode Uji  | Modul / Skenario       | Aksi & Input Pengujian        | Hasil yang Diharapkan           | Status |
 +-----------+------------------------+-------------------------------+---------------------------------+--------+
-| BB-01     | Otentikasi Pengguna    | Input email & password valid  | Pengguna berhasil masuk dan     | VALID  |
+| BB-01     | Otentikasi Pengguna    | Input email & password valid  | Pengguna berhasil masuk dan     | BELUM DIVERIFIKASI |
 |           | (Login Multi-Role)     | pada form login utama         | diarahkan ke dashboard role-nya.|        |
 +-----------+------------------------+-------------------------------+---------------------------------+--------+
-| BB-02     | Deteksi Wali Kelas     | Login akun guru yang ditugasi | Sistem otomatis mendeteksi kelas| VALID  |
+| BB-02     | Deteksi Wali Kelas     | Login akun guru yang ditugasi | Sistem otomatis mendeteksi kelas| BELUM DIVERIFIKASI |
 |           | Dinamis (Opsi A)       | sebagai wali kelas            | binaan dan membuka menu rekap.  |        |
 +-----------+------------------------+-------------------------------+---------------------------------+--------+
-| BB-03     | Perhitungan Nilai      | Input Tugas: 80, UTS: 75,     | Nilai Akhir terkalkulasi: 80.0  | VALID  |
+| BB-03     | Perhitungan Nilai      | Input Tugas: 80, UTS: 75,     | Nilai Akhir terkalkulasi: 80.0  | BELUM DIVERIFIKASI |
 |           | Akhir Otomatis (NA)    | UAS: 85 (Bobot 40:30:30)      | Predikat B (Tuntas KKM >= 75).  |        |
 +-----------+------------------------+-------------------------------+---------------------------------+--------+
-| BB-04     | Penyimpanan Catatan    | Input Sakit, Izin, Alfa,      | Data tersimpan ke entitas       | VALID  |
+| BB-04     | Penyimpanan Catatan    | Input Sakit, Izin, Alfa,      | Data tersimpan ke entitas       | BELUM DIVERIFIKASI |
 |           | Rapor & Presensi       | Sikap Spiritual, Sikap Sosial | CatatanRapor tanpa duplikasi.   |        |
 +-----------+------------------------+-------------------------------+---------------------------------+--------+
-| BB-05     | Perhitungan Peringkat  | Membuka halaman rekapitulasi  | Sistem otomatis meranking siswa | VALID  |
+| BB-05     | Perhitungan Peringkat  | Membuka halaman rekapitulasi  | Sistem otomatis meranking siswa | BELUM DIVERIFIKASI |
 |           | Kelas (Ranking)        | kelas binaan wali kelas       | berdasarkan rata-rata tertinggi.|        |
 +-----------+------------------------+-------------------------------+---------------------------------+--------+
-| BB-06     | Cetak Lembar Rapor     | Klik tombol "Cetak / Simpan   | Menampilkan pop-up cetak A4     | VALID  |
+| BB-06     | Cetak Lembar Rapor     | Klik tombol "Cetak / Simpan   | Menampilkan pop-up cetak A4     | BELUM DIVERIFIKASI |
 |           | Format A4 Resmi        | PDF" di portal wali/siswa     | lengkap Kop Sekolah & TTD 3 pos.|        |
 +-----------+------------------------+-------------------------------+---------------------------------+--------+
-| BB-07     | Akses Rapor Siswa      | Login menggunakan akun        | Siswa & orang tua hanya bisa    | VALID  |
+| BB-07     | Akses Rapor Siswa      | Login menggunakan akun        | Siswa & orang tua hanya bisa    | BELUM DIVERIFIKASI |
 |           | dan Orang Tua          | siswa / anak yang terdaftar   | melihat nilai miliknya sendiri. |        |
 +-----------+------------------------+-------------------------------+---------------------------------+--------+
 
 
-12. CATATAN PENGEMBANGAN LANJUTAN (FUTURE ROADMAP)
+12. LANGKAH LANJUTAN (FUTURE ROADMAP)
 --------------------------------------------------------------------------------
 Untuk pengembangan versi berikutnya di SMP Al-Hidayah, saran fitur tambahan:
 1. Ekspor Rapor massal 1 kelas sekaligus menjadi bundel file .ZIP berisi PDF masing-masing siswa.

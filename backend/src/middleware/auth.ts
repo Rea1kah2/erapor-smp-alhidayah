@@ -1,7 +1,6 @@
 import { type Request, type Response, type NextFunction} from "express";
 import jwt from "jsonwebtoken";
-
-const JWT_SECRET = process.env.JWT_SECRET || 'siakad_super_secret_key';
+import { JWT_SECRET } from '../config/env.js';
 
 export interface AuthRequest extends Request {
     user?: {
@@ -11,8 +10,14 @@ export interface AuthRequest extends Request {
 }
 
 export const verifyToken = (req: AuthRequest, res: Response, next: NextFunction) => {
+    const cookieToken = req.headers.cookie
+        ?.split(';')
+        .map((part) => part.trim())
+        .find((part) => part.startsWith('siakad_token='))
+        ?.slice('siakad_token='.length);
     const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+    const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+    const token = cookieToken || bearerToken;
 
     if(!token){
         return res.status(401).json({error: 'Akses ditolak, token tak ditemukan!'});

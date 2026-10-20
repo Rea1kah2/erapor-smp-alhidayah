@@ -1,16 +1,22 @@
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
 async function main(){
-    const hashedPassword = await bcrypt.hash("admin123", 10);
+    const email = process.env.ADMIN_EMAIL;
+    const password = process.env.ADMIN_PASSWORD;
+    if (!email || !password || password.length < 12) {
+        throw new Error("ADMIN_EMAIL dan ADMIN_PASSWORD (minimal 12 karakter) wajib diatur untuk membuat admin pertama.");
+    }
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     const admin = await prisma.user.upsert({
-        where: {email: 'admin@sekolah.com'},
-        update: {},
+        where: {email: email.toLowerCase()},
+        update: { password: hashedPassword },
         create: {
-            email: 'admin@sekolah.com',
+            email: email.toLowerCase(),
             password: hashedPassword,
             role: 'ADMIN',
         },

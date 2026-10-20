@@ -1,6 +1,8 @@
 // frontend/src/app/dashboard/guru/page.tsx
 'use client';
-import { useState, useEffect } from 'react';
+import { apiFetch } from "@/lib/api";
+import { errorMessage } from '@/lib/errors';
+import { useState, useEffect, useCallback } from 'react';
 import { Plus, X, AlertCircle, Inbox, Pencil, Trash2, CheckCircle2, RefreshCw } from 'lucide-react';
 
 interface Guru {
@@ -28,11 +30,10 @@ export default function DataGuru() {
   const [deletingGuru, setDeletingGuru] = useState<Guru | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const fetchGuru = async () => {
+  const fetchGuru = useCallback(async () => {
     try {
-      const token = localStorage.getItem('siakad_token');
-      const res = await fetch('http://localhost:3001/api/master/guru', {
-        headers: { Authorization: `Bearer ${token}` }
+      const res = await apiFetch('/api/master/guru', {
+        headers: {}
       });
       if (res.ok) {
         const data = await res.json();
@@ -43,11 +44,11 @@ export default function DataGuru() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchGuru();
-  }, []);
+    queueMicrotask(() => { void fetchGuru(); });
+  }, [fetchGuru]);
 
   const openAddModal = () => {
     setEditingId(null);
@@ -75,17 +76,15 @@ export default function DataGuru() {
     setSuccessMsg('');
 
     try {
-      const token = localStorage.getItem('siakad_token');
       const url = editingId
-        ? `http://localhost:3001/api/master/guru/${editingId}`
-        : 'http://localhost:3001/api/master/guru';
+        ? `/api/master/guru/${editingId}`
+        : '/api/master/guru';
       const method = editingId ? 'PUT' : 'POST';
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
         },
         body: JSON.stringify(formData),
       });
@@ -99,8 +98,8 @@ export default function DataGuru() {
       setSuccessMsg(editingId ? 'Data guru berhasil diperbarui!' : 'Guru baru berhasil ditambahkan!');
       setTimeout(() => setSuccessMsg(''), 3000);
       fetchGuru();
-    } catch (error: any) {
-      setErrorMsg(error.message);
+    } catch (error: unknown) {
+      setErrorMsg(errorMessage(error, 'Gagal menyimpan data guru.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -112,10 +111,9 @@ export default function DataGuru() {
     setErrorMsg('');
 
     try {
-      const token = localStorage.getItem('siakad_token');
-      const res = await fetch(`http://localhost:3001/api/master/guru/${deletingGuru.id}`, {
+      const res = await apiFetch(`/api/master/guru/${deletingGuru.id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
+        headers: {}
       });
 
       const data = await res.json();
@@ -125,8 +123,8 @@ export default function DataGuru() {
       setSuccessMsg('Data guru berhasil dihapus!');
       setTimeout(() => setSuccessMsg(''), 3000);
       fetchGuru();
-    } catch (error: any) {
-      setErrorMsg(error.message);
+    } catch (error: unknown) {
+      setErrorMsg(errorMessage(error, 'Gagal menghapus data guru.'));
     } finally {
       setIsDeleting(false);
     }
@@ -287,12 +285,14 @@ export default function DataGuru() {
               </div>
               <div className="flex flex-col gap-2">
                 <label className="text-[15px] font-medium text-label">
-                  Kata Sandi {editingId ? '(Kosongkan jika tidak diubah)' : '(Opsional)'}
+                  Kata Sandi {editingId ? '(Kosongkan jika tidak diubah)' : '(Minimal 12 karakter)'}
                 </label>
                 <input 
                   type="password" 
+                  minLength={12}
+                  required={!editingId}
                   value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder={editingId ? 'Biarkan kosong untuk mempertahankan sandi lama' : 'Default: guru12345'}
+                  placeholder={editingId ? 'Biarkan kosong untuk mempertahankan sandi lama' : 'Buat kata sandi sementara yang kuat'}
                   className="h-11 px-4 rounded-[12px] bg-fill text-label focus:outline-none focus:ring-2 focus:ring-accent transition-shadow"
                 />
               </div>

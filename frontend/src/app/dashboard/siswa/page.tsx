@@ -1,6 +1,8 @@
 // frontend/src/app/dashboard/siswa/page.tsx
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { apiFetch } from "@/lib/api";
+import { errorMessage } from '@/lib/errors';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Plus, 
   X, 
@@ -25,6 +27,7 @@ interface Siswa {
   user: { email: string };
   kelasId: string | null;
   kelas: { id: string; nama: string; tingkat: number } | null;
+  ortu: { id: string; nama: string } | null;
 }
 
 interface Kelas {
@@ -40,6 +43,10 @@ export default function DataSiswa() {
   const [kelasList, setKelasList] = useState<Kelas[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isOrtuModalOpen, setIsOrtuModalOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [ortuForm, setOrtuForm] = useState({ nama: '', email: '', password: '', siswaIds: [] as string[] });
+  const [isSavingOrtu, setIsSavingOrtu] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -63,16 +70,18 @@ export default function DataSiswa() {
   const [deletingSiswa, setDeletingSiswa] = useState<Siswa | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const token = localStorage.getItem('siakad_token');
-      const headers = { Authorization: `Bearer ${token}` };
+      const headers = {};
 
-      const [resSiswa, resKelas] = await Promise.all([
-        fetch('http://localhost:3001/api/master/siswa', { headers }),
-        fetch('http://localhost:3001/api/master/kelas', { headers })
+      const [resSiswa, resKelas, resMe] = await Promise.all([
+        apiFetch('/api/master/siswa', { headers }),
+        apiFetch('/api/master/kelas', { headers }),
+        apiFetch('/api/auth/me')
       ]);
+
+      if (resMe.ok) setIsAdmin((await resMe.json()).user?.role === 'ADMIN');
 
       if (resSiswa.ok && resKelas.ok) {
         setSiswaList(await resSiswa.json());
@@ -83,11 +92,34 @@ export default function DataSiswa() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    queueMicrotask(() => { void fetchData(); });
+  }, [fetchData]);
+
+  const saveParentAccount = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setIsSavingOrtu(true);
+    setErrorMsg('');
+    try {
+      const response = await apiFetch('/api/master/ortu', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(ortuForm)
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Gagal membuat akun orang tua.');
+      setSuccessMsg(`Akun orang tua ${data.data.nama} berhasil dibuat dan ditautkan ke ${data.data.siswaTerhubung} siswa.`);
+      setIsOrtuModalOpen(false);
+      setOrtuForm({ nama: '', email: '', password: '', siswaIds: [] });
+      await fetchData();
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : 'Gagal membuat akun orang tua.');
+    } finally {
+      setIsSavingOrtu(false);
+    }
+  };
 
   // Filtered Siswa List based on Tab/Pill and Search query
   const filteredSiswa = useMemo(() => {
@@ -112,11 +144,6 @@ export default function DataSiswa() {
       return true;
     });
   }, [siswaList, selectedKelasFilter, searchQuery]);
-
-  // Reset page when filter or search changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedKelasFilter, searchQuery, itemsPerPage]);
 
   // Paginated Data
   const totalPages = Math.ceil(filteredSiswa.length / itemsPerPage) || 1;
@@ -213,17 +240,15 @@ export default function DataSiswa() {
     setSuccessMsg('');
 
     try {
-      const token = localStorage.getItem('siakad_token');
       const url = editingId
-        ? `http://localhost:3001/api/master/siswa/${editingId}`
-        : 'http://localhost:3001/api/master/siswa';
+        ? `/api/master/siswa/${editingId}`
+        : '/api/master/siswa';
       const method = editingId ? 'PUT' : 'POST';
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
         },
         body: JSON.stringify(formData),
       });
@@ -237,8 +262,8 @@ export default function DataSiswa() {
       setSuccessMsg(editingId ? 'Data siswa berhasil diperbarui!' : 'Siswa baru berhasil ditambahkan!');
       setTimeout(() => setSuccessMsg(''), 3000);
       fetchData(); 
-    } catch (error: any) {
-      setErrorMsg(error.message);
+    } catch (error: unknown) {
+      setErrorMsg(errorMessage(error, 'Gagal menyimpan data siswa.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -250,10 +275,9 @@ export default function DataSiswa() {
     setErrorMsg('');
 
     try {
-      const token = localStorage.getItem('siakad_token');
-      const res = await fetch(`http://localhost:3001/api/master/siswa/${deletingSiswa.id}`, {
+      const res = await apiFetch(`/api/master/siswa/${deletingSiswa.id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
+        headers: {}
       });
 
       const data = await res.json();
@@ -263,8 +287,8 @@ export default function DataSiswa() {
       setSuccessMsg('Data siswa berhasil dihapus!');
       setTimeout(() => setSuccessMsg(''), 3000);
       fetchData();
-    } catch (error: any) {
-      setErrorMsg(error.message);
+    } catch (error: unknown) {
+      setErrorMsg(errorMessage(error, 'Gagal menghapus data siswa.'));
     } finally {
       setIsDeleting(false);
     }
@@ -284,6 +308,7 @@ export default function DataSiswa() {
           </p>
         </div>
         <div className="flex items-center gap-2.5 shrink-0">
+          {isAdmin && <button onClick={() => setIsOrtuModalOpen(true)} className="h-11 px-5 rounded-full border border-accent text-accent font-semibold flex items-center gap-2"><Plus size={18} />Akun Orang Tua</button>}
           <button 
             onClick={openAddModal}
             className="glass glass-accent h-11 px-5 rounded-full font-semibold text-white flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-md"
@@ -338,12 +363,12 @@ export default function DataSiswa() {
                 type="text"
                 placeholder="Cari nama, NISN, kelas..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
                 className="w-full h-8.5 pl-8.5 pr-3 rounded-full bg-fill text-label text-xs placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-accent transition-all"
               />
               {searchQuery && (
                 <button
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => { setSearchQuery(''); setCurrentPage(1); }}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-label-tertiary hover:text-label"
                 >
                   <X size={14} />
@@ -357,7 +382,7 @@ export default function DataSiswa() {
         <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 no-scrollbar">
           {/* Tab Semua Siswa */}
           <button
-            onClick={() => setSelectedKelasFilter('ALL')}
+            onClick={() => { setSelectedKelasFilter('ALL'); setCurrentPage(1); }}
             className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 ${
               selectedKelasFilter === 'ALL'
                 ? 'bg-accent text-white shadow-sm'
@@ -379,7 +404,7 @@ export default function DataSiswa() {
             return (
               <button
                 key={k.id}
-                onClick={() => setSelectedKelasFilter(k.id)}
+                onClick={() => { setSelectedKelasFilter(k.id); setCurrentPage(1); }}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 ${
                   isSelected
                     ? 'bg-accent text-white shadow-sm'
@@ -398,7 +423,7 @@ export default function DataSiswa() {
 
           {/* Tab Belum Ditempatkan */}
           <button
-            onClick={() => setSelectedKelasFilter('UNASSIGNED')}
+            onClick={() => { setSelectedKelasFilter('UNASSIGNED'); setCurrentPage(1); }}
             className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 ${
               selectedKelasFilter === 'UNASSIGNED'
                 ? 'bg-accent text-white shadow-sm'
@@ -573,7 +598,7 @@ export default function DataSiswa() {
                 <span>Menampilkan</span>
                 <select
                   value={itemsPerPage}
-                  onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                  onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
                   className="px-2 py-1 rounded bg-fill text-label font-medium focus:outline-none cursor-pointer"
                 >
                   {ITEMS_PER_PAGE_OPTIONS.map((opt) => (
@@ -690,12 +715,14 @@ export default function DataSiswa() {
               </div>
               <div className="flex flex-col gap-2">
                 <label className="text-[15px] font-medium text-label">
-                  Kata Sandi {editingId ? '(Kosongkan jika tidak diubah)' : '(Opsional)'}
+                  Kata Sandi {editingId ? '(Kosongkan jika tidak diubah)' : '(Minimal 12 karakter)'}
                 </label>
                 <input 
                   type="password" 
+                  minLength={12}
+                  required={!editingId}
                   value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder={editingId ? 'Biarkan kosong untuk mempertahankan sandi lama' : 'Default: siswa12345'}
+                  placeholder={editingId ? 'Biarkan kosong untuk mempertahankan sandi lama' : 'Buat kata sandi sementara yang kuat'}
                   className="h-11 px-4 rounded-[12px] bg-fill text-label focus:outline-none focus:ring-2 focus:ring-accent transition-shadow"
                 />
               </div>
@@ -717,6 +744,20 @@ export default function DataSiswa() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {isOrtuModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <form onSubmit={saveParentAccount} className="glass glass-thick w-full max-w-lg p-6 flex flex-col gap-4 max-h-[90vh] overflow-y-auto" style={{ '--glass-radius': 'var(--radius-2xl)' } as React.CSSProperties}>
+            <div><h2 className="text-xl font-semibold">Buat Akun Orang Tua</h2><p className="text-sm text-label-secondary">Akun hanya dapat ditautkan oleh administrator ke siswa yang belum memiliki akun orang tua.</p></div>
+            {errorMsg && <p className="text-sm text-[var(--red)]">{errorMsg}</p>}
+            <label className="text-sm font-medium">Nama orang tua<input required value={ortuForm.nama} onChange={(e) => setOrtuForm({ ...ortuForm, nama: e.target.value })} className="mt-1 h-10 w-full px-3 rounded-xl bg-fill" /></label>
+            <label className="text-sm font-medium">Email login<input required type="email" value={ortuForm.email} onChange={(e) => setOrtuForm({ ...ortuForm, email: e.target.value })} className="mt-1 h-10 w-full px-3 rounded-xl bg-fill" /></label>
+            <label className="text-sm font-medium">Kata sandi awal (min. 12 karakter)<input required type="password" minLength={12} value={ortuForm.password} onChange={(e) => setOrtuForm({ ...ortuForm, password: e.target.value })} className="mt-1 h-10 w-full px-3 rounded-xl bg-fill" /></label>
+            <label className="text-sm font-medium">Anak<select required multiple value={ortuForm.siswaIds} onChange={(e) => setOrtuForm({ ...ortuForm, siswaIds: Array.from(e.target.selectedOptions, (option) => option.value) })} className="mt-1 min-h-32 w-full px-3 py-2 rounded-xl bg-fill">{siswaList.filter((siswa) => !siswa.ortu).map((siswa) => <option key={siswa.id} value={siswa.id}>{siswa.nama} — {siswa.nisn}</option>)}</select><span className="text-xs text-label-secondary">Gunakan Ctrl/Command untuk memilih lebih dari satu anak.</span></label>
+            <div className="flex justify-end gap-2"><button type="button" onClick={() => setIsOrtuModalOpen(false)} className="h-10 px-4 rounded-full">Batal</button><button disabled={isSavingOrtu} className="h-10 px-5 rounded-full bg-accent text-white font-semibold disabled:opacity-50">{isSavingOrtu ? 'Menyimpan...' : 'Buat Akun'}</button></div>
+          </form>
         </div>
       )}
 

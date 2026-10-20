@@ -1,15 +1,13 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { apiFetch } from "@/lib/api";
+import { errorMessage } from '@/lib/errors';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Award, 
-  Calendar, 
-  BookOpen, 
   CheckCircle2, 
   AlertCircle, 
   TrendingUp, 
   Inbox, 
-  FileText,
-  User,
   School,
   RefreshCw,
   Printer,
@@ -44,25 +42,28 @@ interface NilaiItem {
 }
 
 interface CatatanRaporItem {
+  siswaId?: string;
   sakit: number;
   izin: number;
   alfa: number;
-  sikapSpiritual: string;
-  deskripsiSpiritual: string;
-  sikapSosial: string;
-  deskripsiSosial: string;
-  ekskul: Array<{ nama: string; predikat: string; keterangan: string }> | any;
+  sikapSpiritual: string | null;
+  deskripsiSpiritual: string | null;
+  sikapSosial: string | null;
+  deskripsiSosial: string | null;
+  ekskul: Array<{ nama: string; predikat: string; keterangan: string }>;
   catatanWali: string;
   statusKenaikan?: string | null;
 }
 
 export default function RaporSayaPage() {
   const [nilaiList, setNilaiList] = useState<NilaiItem[]>([]);
-  const [catatanRapor, setCatatanRapor] = useState<CatatanRaporItem | null>(null);
+  const [catatanList, setCatatanList] = useState<CatatanRaporItem[]>([]);
+  const [siswaList, setSiswaList] = useState<Array<{ id: string; nama: string; nisn: string }>>([]);
   const [targetSiswaId, setTargetSiswaId] = useState<string | null>(null);
 
   const [semester, setSemester] = useState<string>('GANJIL');
-  const [tahunAjaran, setTahunAjaran] = useState<string>('2025/2026');
+  const [tahunAjaran, setTahunAjaran] = useState<string>('');
+  const [yearOptions, setYearOptions] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
@@ -70,15 +71,15 @@ export default function RaporSayaPage() {
   const [printData, setPrintData] = useState<RaporData | null>(null);
   const [isLoadingPrint, setIsLoadingPrint] = useState<boolean>(false);
 
-  const fetchNilaiSaya = async () => {
+  const fetchNilaiSaya = useCallback(async () => {
+    if (!tahunAjaran) return;
     setIsLoading(true);
     setErrorMsg('');
     try {
-      const token = localStorage.getItem('siakad_token');
-      const res = await fetch(
-        `http://localhost:3001/api/nilai/saya?semester=${semester}&tahunAjaran=${encodeURIComponent(tahunAjaran)}`,
+      const res = await apiFetch(
+        `/api/nilai/saya?semester=${semester}&tahunAjaran=${encodeURIComponent(tahunAjaran)}`,
         {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: {}
         }
       );
 
@@ -93,20 +94,35 @@ export default function RaporSayaPage() {
         if (data[0]?.siswa?.id) setTargetSiswaId(data[0].siswa.id);
       } else {
         setNilaiList(data.nilai || []);
-        setCatatanRapor(data.catatanRapor || null);
+        setCatatanList(data.catatanRaporList || (data.catatanRapor ? [data.catatanRapor] : []));
+        setSiswaList(data.siswaList || []);
         setTargetSiswaId(data.siswaId || data.nilai?.[0]?.siswa?.id || null);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setErrorMsg(err.message || 'Gagal memuat rapor.');
+      setErrorMsg(errorMessage(err, 'Gagal memuat rapor.'));
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [semester, tahunAjaran]);
 
   useEffect(() => {
-    fetchNilaiSaya();
-  }, [semester, tahunAjaran]);
+    queueMicrotask(() => { void fetchNilaiSaya(); });
+  }, [fetchNilaiSaya]);
+
+  const catatanRapor = catatanList.find((item) => item.siswaId === targetSiswaId) || null;
+
+  useEffect(() => {
+    apiFetch('/api/master/tahun-ajaran')
+      .then(async (response) => {
+        if (!response.ok) return;
+        const years: Array<{ nama: string; aktif: boolean }> = await response.json();
+        setYearOptions(years.map((year) => year.nama));
+        const activeYear = years.find((year) => year.aktif)?.nama;
+        if (activeYear) setTahunAjaran(activeYear);
+      })
+      .catch(() => setErrorMsg('Gagal memuat daftar tahun ajaran.'));
+  }, []);
 
   // Kelompokkan nilai per mata pelajaran & hitung Nilai Akhir (Tugas 40%, UTS 30%, UAS 30%)
   const groupedByMapel = useMemo(() => {
@@ -115,7 +131,7 @@ export default function RaporSayaPage() {
       scores: Record<string, number>;
     }>();
 
-    nilaiList.forEach((item) => {
+    nilaiList.filter((item) => !targetSiswaId || item.siswa.id === targetSiswaId).forEach((item) => {
       if (!map.has(item.mapel.id)) {
         map.set(item.mapel.id, {
           mapel: item.mapel,
@@ -162,7 +178,7 @@ export default function RaporSayaPage() {
         passed,
       };
     });
-  }, [nilaiList]);
+  }, [nilaiList, targetSiswaId]);
 
   // Statistik Rapor
   const stats = useMemo(() => {
@@ -201,15 +217,14 @@ export default function RaporSayaPage() {
 
     setIsLoadingPrint(true);
     try {
-      const token = localStorage.getItem('siakad_token');
-      const res = await fetch(`http://localhost:3001/api/wali/rapor/${sId}?semester=${semester}&tahunAjaran=${encodeURIComponent(tahunAjaran)}`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const res = await apiFetch(`/api/wali/rapor/${sId}?semester=${semester}&tahunAjaran=${encodeURIComponent(tahunAjaran)}`, {
+        headers: {}
       });
       if (!res.ok) throw new Error('Gagal mengambil data lembar rapor siswa');
       const data = await res.json();
       setPrintData(data);
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      alert(errorMessage(err, 'Gagal memuat data rapor.'));
     } finally {
       setIsLoadingPrint(false);
     }
@@ -236,6 +251,11 @@ export default function RaporSayaPage() {
 
         {/* Filter Semester, Tahun & Tombol Cetak */}
         <div className="flex flex-wrap items-center gap-2.5">
+          {siswaList.length > 1 && (
+            <select value={targetSiswaId || ''} onChange={(e) => setTargetSiswaId(e.target.value)} className="h-10 px-3.5 rounded-full bg-bg-secondary text-label font-medium text-xs border border-separator/40">
+              {siswaList.map((siswa) => <option key={siswa.id} value={siswa.id}>{siswa.nama} ({siswa.nisn})</option>)}
+            </select>
+          )}
           <select
             value={semester}
             onChange={(e) => setSemester(e.target.value)}
@@ -250,8 +270,7 @@ export default function RaporSayaPage() {
             onChange={(e) => setTahunAjaran(e.target.value)}
             className="h-10 px-3.5 rounded-full bg-bg-secondary text-label font-medium text-xs border border-separator/40 focus:ring-2 focus:ring-accent outline-none cursor-pointer"
           >
-            <option value="2025/2026">T.A. 2025/2026</option>
-            <option value="2026/2027">T.A. 2026/2027</option>
+            {yearOptions.map((year) => <option key={year} value={year}>T.A. {year}</option>)}
           </select>
 
           <button
@@ -300,7 +319,7 @@ export default function RaporSayaPage() {
             <Activity size={16} className="text-[#ff9500]" />
           </div>
           <span className="text-xl font-bold tabular-nums text-label mt-1">
-            {catatanRapor ? `${catatanRapor.sakit}S / ${catatanRapor.izin}I / ${catatanRapor.alfa}A` : '0S / 0I / 0A'}
+            {catatanRapor ? `${catatanRapor.sakit}S / ${catatanRapor.izin}I / ${catatanRapor.alfa}A` : '-'}
           </span>
           <span className="text-xs text-label-secondary">Sakit / Izin / Alfa</span>
         </div>
@@ -429,11 +448,11 @@ export default function RaporSayaPage() {
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-label">Sikap Spiritual</span>
                 <span className="px-2 py-0.5 rounded-full bg-[var(--green)]/15 text-[var(--green)] text-xs font-bold">
-                  Predikat {catatanRapor?.sikapSpiritual || 'A'}
+                  Predikat {catatanRapor?.sikapSpiritual || '-'}
                 </span>
               </div>
               <p className="text-xs text-label-secondary mt-1 leading-relaxed">
-                {catatanRapor?.deskripsiSpiritual || 'Menunjukkan ketaatan beribadah dan sikap bersyukur dengan sangat baik.'}
+                {catatanRapor?.deskripsiSpiritual || 'Belum ada penilaian.'}
               </p>
             </div>
 
@@ -441,11 +460,11 @@ export default function RaporSayaPage() {
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-label">Sikap Sosial</span>
                 <span className="px-2 py-0.5 rounded-full bg-accent/15 text-accent text-xs font-bold">
-                  Predikat {catatanRapor?.sikapSosial || 'A'}
+                  Predikat {catatanRapor?.sikapSosial || '-'}
                 </span>
               </div>
               <p className="text-xs text-label-secondary mt-1 leading-relaxed">
-                {catatanRapor?.deskripsiSosial || 'Menunjukkan sikap santun, disiplin mematuhi aturan, peduli, dan bertanggung jawab.'}
+                {catatanRapor?.deskripsiSosial || 'Belum ada penilaian.'}
               </p>
             </div>
           </div>
@@ -466,7 +485,7 @@ export default function RaporSayaPage() {
               </span>
               {catatanRapor?.ekskul && Array.isArray(catatanRapor.ekskul) && catatanRapor.ekskul.length > 0 ? (
                 <div className="flex flex-col gap-2">
-                  {catatanRapor.ekskul.map((eks: any, idx: number) => (
+                  {catatanRapor.ekskul.map((eks, idx) => (
                     <div key={idx} className="p-2.5 rounded-[14px] bg-bg flex items-center justify-between text-xs">
                       <div>
                         <span className="font-semibold text-label">{eks.nama}</span>
@@ -479,7 +498,7 @@ export default function RaporSayaPage() {
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-label-secondary italic">Tidak ada kegiatan khusus yang terdata.</p>
+                <p className="text-xs text-label-secondary italic">{catatanRapor ? 'Tidak ada kegiatan ekstrakurikuler yang dicatat.' : 'Belum ada catatan ekstrakurikuler.'}</p>
               )}
             </div>
 
@@ -487,7 +506,7 @@ export default function RaporSayaPage() {
             <div className="p-3.5 rounded-[18px] bg-bg flex flex-col gap-1 border border-separator/30">
               <span className="text-xs font-semibold text-label">Pesan & Evaluasi Wali Kelas:</span>
               <p className="text-xs text-label-secondary italic leading-relaxed mt-0.5">
-                "{catatanRapor?.catatanWali || 'Pertahankan prestasi belajar dan terus tingkatkan kedisiplinan serta ibadah sehari-hari.'}"
+                {catatanRapor?.catatanWali ? `“${catatanRapor.catatanWali}”` : 'Belum ada catatan.'}
               </p>
             </div>
           </div>

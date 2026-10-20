@@ -1,16 +1,18 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
-import { 
-  FileSpreadsheet, 
-  Search, 
-  Save, 
-  Filter, 
-  CheckCircle2, 
-  AlertCircle, 
-  Inbox, 
-  Layers, 
-  Award, 
-  BookOpen, 
+import { apiFetch } from "@/lib/api";
+import { errorMessage } from '@/lib/errors';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import {
+  FileSpreadsheet,
+  Search,
+  Save,
+  Filter,
+  CheckCircle2,
+  AlertCircle,
+  Inbox,
+  Layers,
+  Award,
+  BookOpen,
   TrendingUp,
   RefreshCw,
   Plus,
@@ -55,14 +57,16 @@ export default function NilaiPage() {
   // Master options
   const [kelasList, setKelasList] = useState<Kelas[]>([]);
   const [mapelList, setMapelList] = useState<Mapel[]>([]);
+  const [manualMapelList, setManualMapelList] = useState<Mapel[]>([]);
   const [siswaList, setSiswaList] = useState<Siswa[]>([]);
   const [allSiswaList, setAllSiswaList] = useState<Siswa[]>([]); // Untuk dropdown modal manual
 
   // Filter selections
   const [selectedKelasId, setSelectedKelasId] = useState<string>('');
   const [selectedMapelId, setSelectedMapelId] = useState<string>('');
+  const [yearOptions, setYearOptions] = useState<string[]>([]);
   const [semester, setSemester] = useState<string>('GANJIL');
-  const [tahunAjaran, setTahunAjaran] = useState<string>('2025/2026');
+  const [tahunAjaran, setTahunAjaran] = useState<string>('');
 
   // Nilai data states
   const [scores, setScores] = useState<Record<string, Record<string, string>>>({});
@@ -82,7 +86,7 @@ export default function NilaiPage() {
     siswaId: '',
     mapelId: '',
     semester: 'GANJIL',
-    tahunAjaran: '2025/2026',
+    tahunAjaran: '',
     tugas: '',
     uts: '',
     uas: ''
@@ -94,23 +98,14 @@ export default function NilaiPage() {
     const fetchMaster = async () => {
       setIsLoadingMaster(true);
       try {
-        const token = localStorage.getItem('siakad_token');
-        const headers = { Authorization: `Bearer ${token}` };
+        const headers = {};
 
-        const [resMe, resKelas, resMapel, resAllSiswa] = await Promise.all([
-          fetch('http://localhost:3001/api/auth/me', { headers }),
-          fetch('http://localhost:3001/api/master/kelas', { headers }),
-          fetch('http://localhost:3001/api/master/mapel', { headers }),
-          fetch('http://localhost:3001/api/master/siswa', { headers })
+        const [resKelas, resMapel, resAllSiswa, resYears] = await Promise.all([
+          apiFetch('/api/master/kelas', { headers }),
+          apiFetch('/api/master/mapel', { headers }),
+          apiFetch('/api/master/siswa', { headers }),
+          apiFetch('/api/master/tahun-ajaran', { headers })
         ]);
-
-        let userRole = 'GURU';
-        let guruId: string | undefined;
-        if (resMe.ok) {
-          const meData = await resMe.json();
-          userRole = meData.user?.role || 'GURU';
-          guruId = meData.user?.guru?.id;
-        }
 
         if (resKelas.ok) {
           const kData: Kelas[] = await resKelas.json();
@@ -120,18 +115,22 @@ export default function NilaiPage() {
 
         if (resMapel.ok) {
           const mData: Mapel[] = await resMapel.json();
-          // Jika role GURU, filter hanya mapel yang diampunya
-          const filteredMapel = userRole === 'GURU' && guruId
-            ? mData.filter((m: any) => m.guruId === guruId)
-            : mData;
-
-          setMapelList(filteredMapel);
-          if (filteredMapel.length > 0) setSelectedMapelId(filteredMapel[0].id);
+          setMapelList(mData);
+          if (mData.length > 0) setSelectedMapelId(mData[0].id);
         }
 
         if (resAllSiswa.ok) {
           const sData: Siswa[] = await resAllSiswa.json();
           setAllSiswaList(sData);
+        }
+        if (resYears.ok) {
+          const years: Array<{ nama: string; aktif: boolean }> = await resYears.json();
+          setYearOptions(years.map((year) => year.nama));
+          const activeYear = years.find((year) => year.aktif)?.nama;
+          if (activeYear) {
+            setTahunAjaran(activeYear);
+            setManualForm((previous) => ({ ...previous, tahunAjaran: activeYear }));
+          }
         }
       } catch (err) {
         console.error('Gagal memuat master kelas & mapel', err);
@@ -144,21 +143,92 @@ export default function NilaiPage() {
     fetchMaster();
   }, []);
 
+  useEffect(() => {
+    if (!tahunAjaran) return;
+    const loadAcademicYear = async () => {
+      const [classResponse, subjectResponse, studentResponse] = await Promise.all([
+        apiFetch(`/api/master/kelas?tahunAjaran=${encodeURIComponent(tahunAjaran)}`),
+        apiFetch(`/api/master/mapel?tahunAjaran=${encodeURIComponent(tahunAjaran)}`),
+        apiFetch(`/api/master/siswa?tahunAjaran=${encodeURIComponent(tahunAjaran)}`)
+      ]);
+      if (classResponse.ok) {
+        const classes: Kelas[] = await classResponse.json();
+        setKelasList(classes);
+        setSelectedKelasId((current) => classes.some((kelas) => kelas.id === current) ? current : classes[0]?.id || '');
+      }
+      if (subjectResponse.ok) {
+        const subjects: Mapel[] = await subjectResponse.json();
+        setMapelList(subjects);
+        setSelectedMapelId((current) => subjects.some((mapel) => mapel.id === current) ? current : subjects[0]?.id || '');
+      }
+      if (studentResponse.ok) setAllSiswaList(await studentResponse.json());
+    };
+    loadAcademicYear().catch(() => setErrorMsg('Gagal memuat data akademik untuk tahun ajaran tersebut.'));
+  }, [tahunAjaran]);
+
+  // A teacher can teach different subjects in different classes. Load the
+  // subject list for the selected class so the form cannot offer invalid pairs.
+  useEffect(() => {
+    if (!tahunAjaran || !selectedKelasId) return;
+    let cancelled = false;
+    apiFetch(`/api/master/mapel?tahunAjaran=${encodeURIComponent(tahunAjaran)}&kelasId=${encodeURIComponent(selectedKelasId)}`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Gagal memuat mata pelajaran kelas.');
+        const subjects: Mapel[] = await response.json();
+        if (cancelled) return;
+        setMapelList(subjects);
+        setSelectedMapelId((current) => subjects.some((subject) => subject.id === current) ? current : subjects[0]?.id || '');
+      })
+      .catch(() => {
+        if (!cancelled) setErrorMsg('Gagal memuat mata pelajaran untuk kelas yang dipilih.');
+      });
+    return () => { cancelled = true; };
+  }, [tahunAjaran, selectedKelasId]);
+
+  useEffect(() => {
+    if (!isManualModalOpen || !manualForm.tahunAjaran || !manualForm.siswaId) return;
+    const selectedStudent = allSiswaList.find((student) => student.id === manualForm.siswaId);
+    if (!selectedStudent?.kelasId) {
+      let cancelled = false;
+      queueMicrotask(() => {
+        if (cancelled) return;
+        setManualMapelList([]);
+        setManualForm((current) => ({ ...current, mapelId: '' }));
+      });
+      return () => { cancelled = true; };
+    }
+    let cancelled = false;
+    apiFetch(`/api/master/mapel?tahunAjaran=${encodeURIComponent(manualForm.tahunAjaran)}&kelasId=${encodeURIComponent(selectedStudent.kelasId)}`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Gagal memuat mata pelajaran siswa.');
+        const subjects: Mapel[] = await response.json();
+        if (cancelled) return;
+        setManualMapelList(subjects);
+        setManualForm((current) => ({
+          ...current,
+          mapelId: subjects.some((subject) => subject.id === current.mapelId) ? current.mapelId : subjects[0]?.id || ''
+        }));
+      })
+      .catch(() => {
+        if (!cancelled) setErrorMsg('Gagal memuat mata pelajaran untuk siswa yang dipilih.');
+      });
+    return () => { cancelled = true; };
+  }, [isManualModalOpen, manualForm.siswaId, manualForm.tahunAjaran, allSiswaList]);
+
   // Fetch students & scores when filter changes
-  const fetchFilterData = async () => {
+  const fetchFilterData = useCallback(async () => {
     if (!selectedKelasId || !selectedMapelId) return;
 
     setIsLoadingNilai(true);
     setErrorMsg('');
 
     try {
-      const token = localStorage.getItem('siakad_token');
-      const headers = { Authorization: `Bearer ${token}` };
+      const headers = {};
 
       const [resSiswa, resNilai] = await Promise.all([
-        fetch(`http://localhost:3001/api/master/siswa?kelasId=${selectedKelasId}`, { headers }),
-        fetch(
-          `http://localhost:3001/api/nilai/mapel?mapelId=${selectedMapelId}&semester=${semester}&tahunAjaran=${encodeURIComponent(tahunAjaran)}&kelasId=${selectedKelasId}`,
+        apiFetch(`/api/master/siswa?kelasId=${selectedKelasId}&tahunAjaran=${encodeURIComponent(tahunAjaran)}`, { headers }),
+        apiFetch(
+          `/api/nilai/mapel?mapelId=${selectedMapelId}&semester=${semester}&tahunAjaran=${encodeURIComponent(tahunAjaran)}&kelasId=${selectedKelasId}`,
           { headers }
         ),
       ]);
@@ -172,7 +242,7 @@ export default function NilaiPage() {
       if (resNilai.ok) {
         const nilaiData: NilaiRecord[] = await resNilai.json();
         const mappedScores: Record<string, Record<string, string>> = {};
-        
+
         currentSiswa.forEach((s) => {
           mappedScores[s.id] = { TUGAS: '', UTS: '', UAS: '' };
         });
@@ -192,11 +262,11 @@ export default function NilaiPage() {
     } finally {
       setIsLoadingNilai(false);
     }
-  };
+  }, [selectedKelasId, selectedMapelId, semester, tahunAjaran]);
 
   useEffect(() => {
-    fetchFilterData();
-  }, [selectedKelasId, selectedMapelId, semester, tahunAjaran]);
+    queueMicrotask(() => { void fetchFilterData(); });
+  }, [fetchFilterData]);
 
   // Active selected mapel info
   const selectedMapel = useMemo(() => {
@@ -233,16 +303,14 @@ export default function NilaiPage() {
     setSuccessMsg('');
 
     try {
-      const token = localStorage.getItem('siakad_token');
-      const headers = { 
+      const headers = {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}` 
       };
 
       const promises = JENIS_NILAI.map(async (jenis) => {
         const val = studentScores[jenis];
         if (val !== undefined && val !== '') {
-          const res = await fetch('http://localhost:3001/api/nilai', {
+          const res = await apiFetch('/api/nilai', {
             method: 'POST',
             headers,
             body: JSON.stringify({
@@ -264,8 +332,8 @@ export default function NilaiPage() {
       await Promise.all(promises);
       setSuccessMsg('Nilai siswa berhasil disimpan!');
       setTimeout(() => setSuccessMsg(''), 3000);
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Gagal menyimpan nilai.');
+    } catch (err: unknown) {
+      setErrorMsg(errorMessage(err, 'Gagal menyimpan nilai.'));
     } finally {
       setSavingSiswaId(null);
     }
@@ -278,13 +346,11 @@ export default function NilaiPage() {
     setSuccessMsg('');
 
     try {
-      const token = localStorage.getItem('siakad_token');
-      const headers = { 
+      const headers = {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}` 
       };
 
-      const promises: Promise<any>[] = [];
+      const promises: Promise<void>[] = [];
 
       filteredSiswa.forEach((siswa) => {
         const studentScores = scores[siswa.id];
@@ -294,7 +360,7 @@ export default function NilaiPage() {
           const val = studentScores[jenis];
           if (val !== undefined && val !== '') {
             promises.push(
-              fetch('http://localhost:3001/api/nilai', {
+              apiFetch('/api/nilai', {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({
@@ -325,8 +391,8 @@ export default function NilaiPage() {
       await Promise.all(promises);
       setSuccessMsg(`Semua nilai untuk kelas ${selectedKelas?.nama || ''} berhasil disimpan!`);
       setTimeout(() => setSuccessMsg(''), 4000);
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Gagal menyimpan semua nilai.');
+    } catch (err: unknown) {
+      setErrorMsg(errorMessage(err, 'Gagal menyimpan semua nilai.'));
     } finally {
       setSavingAll(false);
     }
@@ -345,10 +411,8 @@ export default function NilaiPage() {
     setSuccessMsg('');
 
     try {
-      const token = localStorage.getItem('siakad_token');
       const headers = {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
       };
 
       const entries = [
@@ -359,7 +423,7 @@ export default function NilaiPage() {
 
       for (const entry of entries) {
         if (entry.skor !== '') {
-          const res = await fetch('http://localhost:3001/api/nilai', {
+          const res = await apiFetch('/api/nilai', {
             method: 'POST',
             headers,
             body: JSON.stringify({
@@ -387,8 +451,8 @@ export default function NilaiPage() {
       if (manualForm.mapelId === selectedMapelId && manualForm.semester === semester && manualForm.tahunAjaran === tahunAjaran) {
         fetchFilterData();
       }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Gagal menyimpan nilai manual.');
+    } catch (err: unknown) {
+      setErrorMsg(errorMessage(err, 'Gagal menyimpan nilai manual.'));
     } finally {
       setIsSubmittingManual(false);
     }
@@ -399,7 +463,7 @@ export default function NilaiPage() {
       siswaId: allSiswaList[0]?.id || '',
       mapelId: selectedMapelId || mapelList[0]?.id || '',
       semester: semester || 'GANJIL',
-      tahunAjaran: tahunAjaran || '2025/2026',
+      tahunAjaran: tahunAjaran || yearOptions[0] || '',
       tugas: '',
       uts: '',
       uas: ''
@@ -409,36 +473,32 @@ export default function NilaiPage() {
   };
 
   // Filtered student list by search input
-  const filteredSiswa = useMemo(() => {
-    if (!searchQuery.trim()) return siswaList;
-    const query = searchQuery.toLowerCase();
-    return siswaList.filter(
-      (s) => s.nama.toLowerCase().includes(query) || s.nisn.toLowerCase().includes(query)
-    );
-  }, [siswaList, searchQuery]);
+  const filteredSiswa = searchQuery.trim()
+    ? siswaList.filter((student) => {
+        const query = searchQuery.toLowerCase();
+        return student.nama.toLowerCase().includes(query) || student.nisn.toLowerCase().includes(query);
+      })
+    : siswaList;
 
-  // Calculate final score: Tugas 30%, UTS 30%, UAS 40%
-  const calculateFinal = (studentScores?: Record<string, string>) => {
+  // Match the backend weighting and renormalize for components not entered yet.
+  const calculateFinal = useCallback((studentScores?: Record<string, string>) => {
     if (!studentScores) return { avg: null, passed: false };
-    const tugas = studentScores.TUGAS ? Number(studentScores.TUGAS) : null;
-    const uts = studentScores.UTS ? Number(studentScores.UTS) : null;
-    const uas = studentScores.UAS ? Number(studentScores.UAS) : null;
-
-    if (tugas === null && uts === null && uas === null) {
-      return { avg: null, passed: false };
-    }
-
-    const tVal = tugas ?? 0;
-    const utVal = uts ?? 0;
-    const uaVal = uas ?? 0;
-    const finalScore = Math.round((tVal * 0.3 + utVal * 0.3 + uaVal * 0.4) * 10) / 10;
+    const components = [
+      { value: studentScores.TUGAS, weight: 0.4 },
+      { value: studentScores.UTS, weight: 0.3 },
+      { value: studentScores.UAS, weight: 0.3 }
+    ].filter((component) => component.value !== undefined && component.value !== '');
+    if (components.length === 0) return { avg: null, passed: false };
+    const totalWeight = components.reduce((sum, component) => sum + component.weight, 0);
+    const weightedScore = components.reduce((sum, component) => sum + Number(component.value) * component.weight, 0);
+    const finalScore = Math.round((weightedScore / totalWeight) * 10) / 10;
     const kkm = selectedMapel?.kkm ?? 75;
 
     return {
       avg: finalScore,
       passed: finalScore >= kkm,
     };
-  };
+  }, [selectedMapel?.kkm]);
 
   // Overall class statistics
   const statsSummary = useMemo(() => {
@@ -466,7 +526,7 @@ export default function NilaiPage() {
       percentTuntas,
       kkm,
     };
-  }, [filteredSiswa, scores, selectedMapel]);
+  }, [filteredSiswa, scores, selectedMapel, calculateFinal]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -603,9 +663,7 @@ export default function NilaiPage() {
               onChange={(e) => setTahunAjaran(e.target.value)}
               className="h-11 px-3.5 rounded-[12px] bg-fill text-label font-medium focus:outline-none focus:ring-2 focus:ring-accent transition-all cursor-pointer"
             >
-              <option value="2025/2026" className="bg-bg text-label">2025/2026</option>
-              <option value="2024/2025" className="bg-bg text-label">2024/2025</option>
-              <option value="2026/2027" className="bg-bg text-label">2026/2027</option>
+              {yearOptions.map((year) => <option key={year} value={year} className="bg-bg text-label">{year}</option>)}
             </select>
           </div>
         </div>
@@ -929,7 +987,7 @@ export default function NilaiPage() {
                   className="h-11 px-4 rounded-[12px] bg-fill text-label focus:outline-none focus:ring-2 focus:ring-accent cursor-pointer"
                 >
                   <option value="">-- Pilih Mapel --</option>
-                  {mapelList.map((m) => (
+                  {manualMapelList.map((m) => (
                     <option key={m.id} value={m.id} className="bg-bg text-label">
                       {m.nama} (KKM: {m.kkm})
                     </option>

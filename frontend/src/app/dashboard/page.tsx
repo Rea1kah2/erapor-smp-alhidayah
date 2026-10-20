@@ -1,5 +1,6 @@
 // frontend/src/app/dashboard/page.tsx
 'use client';
+import { apiFetch } from "@/lib/api";
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { 
@@ -9,36 +10,49 @@ import {
   BookOpen, 
   FileSpreadsheet, 
   Award, 
-  Calendar, 
   CheckCircle2, 
-  TrendingUp,
   User,
   ArrowRight
 } from 'lucide-react';
 
+interface SubjectSummary { id: string; nama: string; kkm: number; }
+interface DashboardProfile {
+  email: string;
+  role: string;
+  guru?: {
+    nama: string;
+    nip: string | null;
+    kelasWali: { nama: string; tingkat: number } | null;
+    mapel: SubjectSummary[];
+    penugasanWali: Array<{ kelas: { id: string; nama: string; tingkat: number } }>;
+    penugasanMapel: Array<{ mapel: SubjectSummary; kelas: { id: string; nama: string } }>;
+  } | null;
+  siswa?: { nama: string; nisn: string; kelas: { nama: string; tingkat: number; wali?: { nama: string } | null } | null } | null;
+  ortu?: { nama: string; anak: Array<{ id: string; nama: string; nisn: string; kelas: { nama: string; tingkat: number; wali?: { nama: string } | null } | null }> } | null;
+}
+
 export default function DashboardHome() {
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<DashboardProfile | null>(null);
   const [stats, setStats] = useState({ siswa: 0, guru: 0, kelas: 0, mapel: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
-      const token = localStorage.getItem('siakad_token');
-      const headers = { Authorization: `Bearer ${token}` };
+      const headers = {};
 
       try {
-        const resProfile = await fetch('http://localhost:3001/api/auth/me', { headers });
+        const resProfile = await apiFetch('/api/auth/me', { headers });
         if (resProfile.ok) {
           const profileData = await resProfile.json();
           setProfile(profileData.user);
 
           // Jika Admin, ambil statistik sekolah
           if (profileData.user?.role === 'ADMIN') {
-            const resStats = await fetch('http://localhost:3001/api/master/stats', { headers });
+            const resStats = await apiFetch('/api/master/stats', { headers });
             if (resStats.ok) setStats(await resStats.json());
           }
         }
-      } catch (error) {
+      } catch {
         console.error('Gagal mengambil data dashboard');
       } finally {
         setLoading(false);
@@ -149,8 +163,13 @@ export default function DashboardHome() {
   // ================= GURU VIEW =================
   if (role === 'GURU') {
     const guruData = profile?.guru;
-    const kelasWali = guruData?.kelasWali;
-    const mapelAjar = guruData?.mapel || [];
+    const kelasWaliList = guruData?.penugasanWali.length
+      ? guruData.penugasanWali.map((assignment) => assignment.kelas)
+      : guruData?.kelasWali ? [guruData.kelasWali] : [];
+    const kelasWali = kelasWaliList[0];
+    const mapelAjar = guruData?.penugasanMapel.length
+      ? [...new Map(guruData.penugasanMapel.map((assignment) => [assignment.mapel.id, assignment.mapel])).values()]
+      : guruData?.mapel || [];
 
     return (
       <div className="flex flex-col gap-6">
@@ -173,10 +192,10 @@ export default function DashboardHome() {
               <School size={18} className="text-accent" />
             </div>
             <span className="text-2xl font-bold text-label">
-              {kelasWali ? kelasWali.nama : 'Bukan Wali'}
+              {kelasWaliList.length ? kelasWaliList.map((kelas) => kelas.nama).join(', ') : 'Bukan Wali'}
             </span>
             <span className="text-xs text-label-secondary">
-              {kelasWali ? `Tingkat ${kelasWali.tingkat}` : 'Belum ditugaskan'}
+              {kelasWaliList.length ? kelasWaliList.map((kelas) => `Tingkat ${kelas.tingkat}`).join(', ') : 'Belum ditugaskan'}
             </span>
           </div>
 
@@ -189,7 +208,7 @@ export default function DashboardHome() {
               {mapelAjar.length} Mata Pelajaran
             </span>
             <span className="text-xs text-label-secondary truncate">
-              {mapelAjar.map((m: any) => m.nama).join(', ') || 'Belum ada mata pelajaran'}
+              {mapelAjar.map((m) => m.nama).join(', ') || 'Belum ada mata pelajaran'}
             </span>
           </div>
 
@@ -210,7 +229,7 @@ export default function DashboardHome() {
                   href="/dashboard/wali"
                   className="bg-fill hover:bg-label/10 text-center py-1.5 px-3 rounded-full text-label text-xs font-semibold active:scale-95 transition-transform"
                 >
-                  Rekap & Rapor Kelas ({kelasWali.nama})
+                  Rekap & Rapor Kelas ({kelasWaliList.map((kelas) => kelas.nama).join(', ')})
                 </Link>
               )}
             </div>
@@ -224,7 +243,7 @@ export default function DashboardHome() {
             <p className="text-sm text-label-secondary italic">Belum ada mata pelajaran yang ditugaskan kepada Anda. Hubungi Administrator untuk pengaturan.</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {mapelAjar.map((m: any) => (
+              {mapelAjar.map((m) => (
                 <div key={m.id} className="p-4 rounded-[18px] bg-bg flex items-center justify-between">
                   <div>
                     <h4 className="font-semibold text-sm text-label">{m.nama}</h4>

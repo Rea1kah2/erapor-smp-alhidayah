@@ -1,185 +1,41 @@
 import { type Request, type Response} from 'express';
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { type AuthRequest} from '../middleware/auth.js';
-
-const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || 'siakad_super_secret_key';
-
-export const registerAdmin = async (req: Request, res: Response) => {
-    try{
-        const {email, password} = req.body;
-
-        const existingUser = await prisma.user.findUnique({where: {email}});
-        if(existingUser){
-            return res.status(400).json({error: 'Email sudah terdaftar!'});
-        }
-
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const user = await prisma.user.create({
-            data: {
-                email,
-                password: hashedPassword,
-                role: 'ADMIN'
-            }
-        });
-
-        res.status(201).json({message: 'Admin berhasil didaftarkan!', userId: user.id});
-    } catch(error){
-        res.status(500).json({error: 'Terjadi kesalahan saat mendaftarkan admin!'});
-    }
-};
-
-export const register = async (req: Request, res: Response) => {
-    try {
-        const { email, password, role, nama, nip, nisn, kelasId, anakNisn } = req.body;
-
-        if (!email || !password || !role || !nama) {
-            return res.status(400).json({ error: 'Nama, email, password, dan peran (role) wajib diisi!' });
-        }
-
-        if (password.length < 6) {
-            return res.status(400).json({ error: 'Kata sandi minimal 6 karakter!' });
-        }
-
-        const validRoles = ['GURU', 'SISWA', 'ORTU'];
-        if (!validRoles.includes(role)) {
-            return res.status(400).json({ error: 'Role registrasi tidak valid. Pilih Guru, Siswa, atau Orang Tua.' });
-        }
-
-        const existingUser = await prisma.user.findUnique({ where: { email } });
-        if (existingUser) {
-            return res.status(400).json({ error: 'Email sudah terdaftar di sistem! Silakan login.' });
-        }
-
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        if (role === 'GURU') {
-            if (nip) {
-                const existingGuru = await prisma.guru.findUnique({ where: { nip } });
-                if (existingGuru) return res.status(400).json({ error: 'NIP sudah terdaftar untuk guru lain!' });
-            }
-
-            const newUser = await prisma.user.create({
-                data: {
-                    email,
-                    password: hashedPassword,
-                    role: 'GURU',
-                    guru: {
-                        create: {
-                            nama,
-                            nip: nip || null
-                        }
-                    }
-                },
-                include: { guru: true }
-            });
-
-            return res.status(201).json({
-                message: 'Registrasi Guru berhasil! Silakan masuk.',
-                userId: newUser.id,
-                role: newUser.role
-            });
-        }
-
-        if (role === 'SISWA') {
-            if (!nisn) {
-                return res.status(400).json({ error: 'NISN wajib diisi untuk registrasi Siswa!' });
-            }
-
-            const existingSiswa = await prisma.siswa.findUnique({ where: { nisn } });
-            if (existingSiswa) {
-                return res.status(400).json({ error: 'NISN sudah terdaftar di sistem!' });
-            }
-
-            const newUser = await prisma.user.create({
-                data: {
-                    email,
-                    password: hashedPassword,
-                    role: 'SISWA',
-                    siswa: {
-                        create: {
-                            nama,
-                            nisn,
-                            kelasId: kelasId || null
-                        }
-                    }
-                },
-                include: { siswa: true }
-            });
-
-            return res.status(201).json({
-                message: 'Registrasi Siswa berhasil! Silakan masuk.',
-                userId: newUser.id,
-                role: newUser.role
-            });
-        }
-
-        if (role === 'ORTU') {
-            // Cari data anak jika NISN anak dicantumkan
-            let anakId: string | undefined;
-            if (anakNisn) {
-                const targetAnak = await prisma.siswa.findUnique({ where: { nisn: anakNisn } });
-                if (targetAnak) anakId = targetAnak.id;
-            }
-
-            const newUser = await prisma.user.create({
-                data: {
-                    email,
-                    password: hashedPassword,
-                    role: 'ORTU',
-                    ortu: {
-                        create: {
-                            nama
-                        }
-                    }
-                },
-                include: { ortu: true }
-            });
-
-            // Hubungkan anak jika ditemukan
-            if (anakId && newUser.ortu) {
-                await prisma.siswa.update({
-                    where: { id: anakId },
-                    data: { ortuId: newUser.ortu.id }
-                });
-            }
-
-            return res.status(201).json({
-                message: 'Registrasi Orang Tua berhasil! Silakan masuk.',
-                userId: newUser.id,
-                role: newUser.role
-            });
-        }
-
-        return res.status(400).json({ error: 'Role tidak didukung' });
-    } catch (error: any) {
-        console.error('Error register:', error);
-        res.status(500).json({ error: 'Terjadi kesalahan server saat registrasi!' });
-    }
-};
+import { COOKIE_SAME_SITE, COOKIE_SECURE, JWT_SECRET } from '../config/env.js';
+import { prisma } from '../lib/prisma.js';
+import { isDatabaseUnavailableError, sendDatabaseUnavailable } from '../lib/database.js';
 
 export const login = async (req: Request, res: Response) => {
     try{
         const {email, password} = req.body;
-
-        const user = await prisma.user.findUnique({where: {email}});
-        if(!user){
-            return res.status(400).json({error: 'Pengguna tidak ditemukan!'}); 
+        if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password) {
+            return res.status(400).json({ error: 'Email dan kata sandi wajib diisi.' });
         }
+
+        const user = await prisma.user.findUnique({where: {email: email.trim().toLowerCase()}});
+        if(!user) return res.status(401).json({error: 'Email atau kata sandi tidak cocok.'});
 
         const isPasswordValid = await bcrypt.compare(password, user.password);
-        if(!isPasswordValid){
-            return res.status(400).json({error: 'Kata sandi salah!'});
-        }
+        if(!isPasswordValid) return res.status(401).json({error: 'Email atau kata sandi tidak cocok.'});
 
         const token = jwt.sign({id: user.id, role: user.role}, JWT_SECRET, {expiresIn: '1d'});
-
-        res.json({message: 'Login berhasil!', token, role: user.role});
+        const secure = COOKIE_SECURE ? '; Secure' : '';
+        res.setHeader('Set-Cookie', `siakad_token=${encodeURIComponent(token)}; HttpOnly; Path=/; SameSite=${COOKIE_SAME_SITE}; Max-Age=86400${secure}`);
+        res.json({message: 'Login berhasil!', role: user.role});
     } catch(error){
+        if (isDatabaseUnavailableError(error)) {
+            sendDatabaseUnavailable(res, error, 'login');
+            return;
+        }
         res.status(500).json({error: 'Terjadi kesalahan saat login!'});
     }
+};
+
+export const logout = (_req: Request, res: Response) => {
+    const secure = COOKIE_SECURE ? '; Secure' : '';
+    res.setHeader('Set-Cookie', `siakad_token=; HttpOnly; Path=/; SameSite=${COOKIE_SAME_SITE}; Max-Age=0${secure}`);
+    res.json({ message: 'Sesi ditutup.' });
 };
 
 export const getMe = async (req: AuthRequest, res: Response) => {
@@ -188,6 +44,11 @@ export const getMe = async (req: AuthRequest, res: Response) => {
             return res.status(401).json({error: 'Tidak terautentikasi!'});
         }
 
+        const activeYear = await prisma.tahunAjaran.findFirst({
+            where: { aktif: true },
+            select: { id: true }
+        });
+        const activeYearId = activeYear?.id || '';
         const user = await prisma.user.findUnique({
             where: {id: req.user.id},
             select: {
@@ -198,7 +59,15 @@ export const getMe = async (req: AuthRequest, res: Response) => {
                 guru: {
                     include: {
                         kelasWali: true,
-                        mapel: true
+                        mapel: true,
+                        penugasanWali: {
+                            where: { tahunAjaranId: activeYearId },
+                            include: { kelas: true }
+                        },
+                        penugasanMapel: {
+                            where: { tahunAjaranId: activeYearId },
+                            include: { mapel: true, kelas: true }
+                        }
                     }
                 },
                 siswa: {
@@ -228,7 +97,10 @@ export const getMe = async (req: AuthRequest, res: Response) => {
 
         res.json({user});
     } catch(error){
+        if (isDatabaseUnavailableError(error)) {
+            sendDatabaseUnavailable(res, error, 'mengambil profil pengguna');
+            return;
+        }
         res.status(500).json({error: 'Terjadi kesalahan saat mengambil data user!'});
     }
 }
-

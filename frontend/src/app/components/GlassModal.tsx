@@ -4,7 +4,6 @@ import {
   CheckCircle2, 
   AlertTriangle, 
   Info, 
-  XCircle, 
   HelpCircle,
   X 
 } from 'lucide-react';

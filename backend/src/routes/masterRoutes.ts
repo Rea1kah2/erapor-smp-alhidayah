@@ -4,7 +4,9 @@ import {
     createSiswa, getSiswa, updateSiswa, deleteSiswa,
     createKelas, getKelas, updateKelas, deleteKelas,
     createMapel, getMapel, updateMapel, deleteMapel,
-    getStats
+    getStats, getTahunAjaran, createTahunAjaran, setTahunAjaranAktif,
+    getPenugasan, setPenugasanMapel, setPenugasanWali, assignSiswaToClass,
+    createOrtu
 } from '../controllers/masterController.js';
 import { verifyToken, requireRole } from '../middleware/auth.js';
 
@@ -13,10 +15,18 @@ const router = Router();
 router.use(verifyToken);
 
 router.get('/stats', requireRole(['ADMIN']), getStats);
+router.get('/tahun-ajaran', requireRole(['ADMIN', 'GURU', 'SISWA', 'ORTU']), getTahunAjaran);
+router.post('/tahun-ajaran', requireRole(['ADMIN']), createTahunAjaran);
+router.put('/tahun-ajaran/:id/aktif', requireRole(['ADMIN']), setTahunAjaranAktif);
+router.get('/penugasan', requireRole(['ADMIN']), getPenugasan);
+router.post('/penugasan/mapel', requireRole(['ADMIN']), setPenugasanMapel);
+router.post('/penugasan/wali', requireRole(['ADMIN']), setPenugasanWali);
+router.post('/siswa/:id/kelas', requireRole(['ADMIN']), assignSiswaToClass);
+router.post('/ortu', requireRole(['ADMIN']), createOrtu);
 
 // GURU
 router.post('/guru', requireRole(['ADMIN']), createGuru);
-router.get('/guru', requireRole(['ADMIN', 'GURU']), getGuru);
+router.get('/guru', requireRole(['ADMIN']), getGuru);
 router.put('/guru/:id', requireRole(['ADMIN']), updateGuru);
 router.delete('/guru/:id', requireRole(['ADMIN']), deleteGuru);
 

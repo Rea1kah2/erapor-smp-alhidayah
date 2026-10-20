@@ -12,9 +12,9 @@ import {
   LogOut, 
   PanelLeftClose, 
   PanelLeftOpen,
-  UserCheck
 } from 'lucide-react';
 import GlassModal from '../components/GlassModal';
+import { apiFetch } from '@/lib/api';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -24,19 +24,28 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const [userRole, setUserRole] = useState<string>('ADMIN');
 
   useEffect(() => {
-    setIsClient(true);
-    const token = localStorage.getItem('siakad_token');
-    const role = localStorage.getItem('siakad_role') || 'ADMIN';
-    if (!token) {
-      router.push('/');
-    } else {
-      setUserRole(role.toUpperCase());
-    }
+    let active = true;
+    apiFetch('/api/auth/me')
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Sesi tidak berlaku.');
+        const profile = await response.json();
+        if (active) {
+          setUserRole(String(profile.user?.role || '').toUpperCase());
+          setIsClient(true);
+        }
+      })
+      .catch(() => {
+        localStorage.removeItem('siakad_token');
+        localStorage.removeItem('siakad_role');
+        router.replace('/');
+      });
+    return () => { active = false; };
   }, [router]);
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const confirmLogout = () => {
+    apiFetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     localStorage.removeItem('siakad_token');
     localStorage.removeItem('siakad_role');
     setShowLogoutModal(false);
