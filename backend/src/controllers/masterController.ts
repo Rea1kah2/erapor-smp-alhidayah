@@ -3,34 +3,38 @@ import bcrypt from 'bcryptjs';
 import { type AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { isDatabaseUnavailableError, sendDatabaseUnavailable } from '../lib/database.js';
+import { assertUniqueUserIdentifier } from '../lib/authValidation.js';
 
 // ================= GURU =================
 export const createGuru = async (req: Request, res: Response) => {
     try {
         const { nama, nip, email, password } = req.body;
-        if (typeof nama !== 'string' || !nama.trim() || typeof email !== 'string' || !email.trim() || typeof password !== 'string' || password.length < 12) {
-            return res.status(400).json({ error: 'Nama, email, dan kata sandi minimal 12 karakter wajib diisi.' });
+        if (typeof nama !== 'string' || !nama.trim() || typeof email !== 'string' || !email.trim() || typeof password !== 'string' || password.length < 12 || typeof nip !== 'string' || !nip.trim()) {
+            return res.status(400).json({ error: 'Nama, NIP, email, dan kata sandi minimal 12 karakter wajib diisi.' });
         }
         const normalizedEmail = email.trim().toLowerCase();
+        const cleanNip = nip.trim();
 
-        const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-        if (existingUser) return res.status(400).json({ error: 'Email sudah terdaftar' });
-
-        if (nip) {
-            if (typeof nip !== 'string') return res.status(400).json({ error: 'NIP tidak valid.' });
-            const existingNip = await prisma.guru.findUnique({ where: { nip: nip.trim() } });
-            if (existingNip) return res.status(400).json({ error: 'NIP sudah digunakan' });
+        // Validasi keunikan absolut di seluruh sistem (anti-kloning guru)
+        const uniqueCheck = await assertUniqueUserIdentifier({
+            identifier: cleanNip,
+            email: normalizedEmail,
+            entityType: 'GURU'
+        });
+        if (!uniqueCheck.ok) {
+            return res.status(409).json({ error: uniqueCheck.error });
         }
 
         const hashedPassword = await bcrypt.hash(password, 12);
+        const guruRole = (req.body.role === 'GURU_WALI' ? 'GURU_WALI' : 'GURU_MAPEL');
 
         const result = await prisma.$transaction(async (tx) => {
             const user = await tx.user.create({
-                data: { email: normalizedEmail, password: hashedPassword, role: 'GURU' }
+                data: { email: normalizedEmail, password: hashedPassword, role: guruRole }
             });
 
             const guru = await tx.guru.create({
-                data: { nama: nama.trim(), nip: typeof nip === 'string' && nip.trim() ? nip.trim() : null, userId: user.id }
+                data: { nama: nama.trim(), nip: cleanNip, userId: user.id }
             });
 
             return guru;
@@ -69,17 +73,21 @@ export const updateGuru = async (req: Request, res: Response) => {
         if (nip !== undefined && nip !== null && nip !== '' && typeof nip !== 'string') return res.status(400).json({ error: 'NIP tidak valid.' });
         if (password !== undefined && password !== '' && (typeof password !== 'string' || password.length < 12)) return res.status(400).json({ error: 'Kata sandi baru minimal 12 karakter.' });
 
-        // Cek jika email berubah dan sudah dipakai user lain
+        // Validasi keunikan jika email atau NIP berubah
         const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : undefined;
-        if (normalizedEmail && normalizedEmail !== guru.user.email) {
-            const emailTaken = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-            if (emailTaken) return res.status(400).json({ error: 'Email sudah digunakan oleh akun lain' });
-        }
+        const targetNip = nip && typeof nip === 'string' && nip.trim() ? nip.trim() : guru.nip;
 
-        // Cek jika NIP berubah dan sudah dipakai guru lain
-        if (nip && nip.trim() !== guru.nip) {
-            const nipTaken = await prisma.guru.findUnique({ where: { nip: nip.trim() } });
-            if (nipTaken) return res.status(400).json({ error: 'NIP sudah digunakan oleh guru lain' });
+        if ((normalizedEmail && normalizedEmail !== guru.user.email) || (nip && nip.trim() !== guru.nip)) {
+            const uniqueCheck = await assertUniqueUserIdentifier({
+                identifier: targetNip,
+                email: normalizedEmail || guru.user.email,
+                entityType: 'GURU',
+                excludeUserId: guru.userId,
+                excludeEntityId: guru.id
+            });
+            if (!uniqueCheck.ok) {
+                return res.status(409).json({ error: uniqueCheck.error });
+            }
         }
 
         await prisma.$transaction(async (tx) => {
@@ -100,7 +108,7 @@ export const updateGuru = async (req: Request, res: Response) => {
                 where: { id },
                 data: {
                     ...(nama !== undefined ? { nama: nama.trim() } : {}),
-                    ...(nip !== undefined ? { nip: typeof nip === 'string' && nip.trim() ? nip.trim() : null } : {})
+                    ...(nip !== undefined && typeof nip === 'string' && nip.trim() ? { nip: nip.trim() } : {})
                 }
             });
         });
@@ -158,18 +166,23 @@ export const createSiswa = async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Nama, email, NISN 10 digit, dan kata sandi minimal 12 karakter wajib diisi.' });
         }
         const normalizedEmail = email.trim().toLowerCase();
+        const cleanNisn = nisn.trim();
 
-        const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-        if (existingUser) return res.status(400).json({ error: 'Email sudah terdaftar!' });
-
-        const existingNisn = await prisma.siswa.findUnique({ where: { nisn } });
-        if (existingNisn) return res.status(400).json({ error: 'NISN sudah terdaftar!' });
+        // Validasi keunikan absolut di seluruh sistem (anti-kloning siswa)
+        const uniqueCheck = await assertUniqueUserIdentifier({
+            identifier: cleanNisn,
+            email: normalizedEmail,
+            entityType: 'SISWA'
+        });
+        if (!uniqueCheck.ok) {
+            return res.status(409).json({ error: uniqueCheck.error });
+        }
         const activeYear = await prisma.tahunAjaran.findFirst({ where: { aktif: true } });
         if (!activeYear) return res.status(400).json({ error: 'Administrator harus menetapkan tahun ajaran aktif terlebih dahulu.' });
         if (kelasId) {
             const classRecord = await prisma.kelas.findUnique({ where: { id: String(kelasId) }, select: { tahunAjaranId: true } });
             if (!classRecord || classRecord.tahunAjaranId !== activeYear.id) {
-                return res.status(400).json({ error: 'Kelas bukan rombongan belajar tahun ajaran aktif.' });
+                return res.status(400).json({ error: 'Kelas tidak terdaftar pada tahun ajaran aktif.' });
             }
         }
 
@@ -206,9 +219,10 @@ export const getSiswa = async (req: AuthRequest, res: Response) => {
             ? await prisma.tahunAjaran.findUnique({ where: { nama: yearLabel } })
             : await prisma.tahunAjaran.findFirst({ where: { aktif: true } });
         if (yearLabel && !year) return res.status(404).json({ error: 'Tahun ajaran tidak ditemukan.' });
-        if (req.user?.role === 'GURU' && !year) return res.status(400).json({ error: 'Tahun ajaran aktif belum ditetapkan.' });
+        const isGuruUser = req.user?.role === 'GURU' || req.user?.role === 'GURU_MAPEL' || req.user?.role === 'GURU_WALI';
+        if (isGuruUser && !year) return res.status(400).json({ error: 'Tahun ajaran aktif belum ditetapkan.' });
         let permittedClassIds: string[] | undefined;
-        if (req.user?.role === 'GURU' && year) {
+        if (isGuruUser && year && req.user) {
             const guru = await prisma.guru.findUnique({ where: { userId: req.user.id }, select: { id: true } });
             if (!guru) return res.status(403).json({ error: 'Profil guru tidak ditemukan.' });
             const [subjectAssignments, homeroomAssignments] = await Promise.all([
@@ -221,7 +235,7 @@ export const getSiswa = async (req: AuthRequest, res: Response) => {
         }
         const data: any[] = await prisma.siswa.findMany({
             where: year
-                ? (kelasId || req.user?.role === 'GURU' ? {
+                ? (kelasId || isGuruUser ? {
                     riwayatKelas: { some: { tahunAjaranId: year.id, ...(kelasId ? { kelasId: String(kelasId) } : { kelasId: { in: permittedClassIds || [] } }) } }
                 } : undefined)
                 : { ...(kelasId ? { kelasId: String(kelasId) } : {}) },
@@ -266,15 +280,21 @@ export const updateSiswa = async (req: Request, res: Response) => {
             if (!classRecord || classRecord.tahunAjaranId !== year.id) return res.status(400).json({ error: 'Kelas tidak terdaftar pada tahun ajaran yang dipilih.' });
         }
 
+        // Validasi keunikan jika email atau NISN berubah
         const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : undefined;
-        if (normalizedEmail && normalizedEmail !== siswa.user.email) {
-            const emailTaken = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-            if (emailTaken) return res.status(400).json({ error: 'Email sudah digunakan oleh akun lain' });
-        }
+        const targetNisn = nisn && typeof nisn === 'string' && nisn.trim() ? nisn.trim() : siswa.nisn;
 
-        if (nisn && nisn !== siswa.nisn) {
-            const nisnTaken = await prisma.siswa.findUnique({ where: { nisn } });
-            if (nisnTaken) return res.status(400).json({ error: 'NISN sudah digunakan oleh siswa lain' });
+        if ((normalizedEmail && normalizedEmail !== siswa.user.email) || (nisn && nisn.trim() !== siswa.nisn)) {
+            const uniqueCheck = await assertUniqueUserIdentifier({
+                identifier: targetNisn,
+                email: normalizedEmail || siswa.user.email,
+                entityType: 'SISWA',
+                excludeUserId: siswa.userId,
+                excludeEntityId: siswa.id
+            });
+            if (!uniqueCheck.ok) {
+                return res.status(409).json({ error: uniqueCheck.error });
+            }
         }
 
         await prisma.$transaction(async (tx) => {
@@ -384,7 +404,8 @@ export const getKelas = async (req: AuthRequest, res: Response) => {
             : await prisma.tahunAjaran.findFirst({ where: { aktif: true } });
         if (yearLabel && !year) return res.status(404).json({ error: 'Tahun ajaran tidak ditemukan.' });
         let permittedClassIds: string[] | undefined;
-        if (req.user?.role === 'GURU') {
+        const isGuruUser = req.user?.role === 'GURU' || req.user?.role === 'GURU_MAPEL' || req.user?.role === 'GURU_WALI';
+        if (isGuruUser && req.user) {
             if (!year) return res.status(400).json({ error: 'Tahun ajaran aktif belum ditetapkan.' });
             const guru = await prisma.guru.findUnique({ where: { userId: req.user.id }, select: { id: true } });
             if (!guru) return res.status(403).json({ error: 'Profil guru tidak ditemukan.' });
@@ -539,12 +560,13 @@ export const getMapel = async (req: AuthRequest, res: Response) => {
         if (yearLabel && !year) return res.status(404).json({ error: 'Tahun ajaran tidak ditemukan.' });
         const classId = req.query.kelasId ? String(req.query.kelasId) : undefined;
         let permittedMapelIds: string[] | undefined;
-        if (req.user?.role === 'GURU' || classId) {
+        const isGuruUser = req.user?.role === 'GURU' || req.user?.role === 'GURU_MAPEL' || req.user?.role === 'GURU_WALI';
+        if (isGuruUser || classId) {
             if (!year) return res.status(400).json({ error: 'Tahun ajaran aktif belum ditetapkan.' });
             let teacherId: string | undefined;
-            if (req.user?.role === 'GURU') {
-            const guru = await prisma.guru.findUnique({ where: { userId: req.user.id }, select: { id: true } });
-            if (!guru) return res.json([]);
+            if (isGuruUser && req.user) {
+                const guru = await prisma.guru.findUnique({ where: { userId: req.user.id }, select: { id: true } });
+                if (!guru) return res.json([]);
                 teacherId = guru.id;
             }
             const assignments = await prisma.penugasanMapel.findMany({
@@ -765,9 +787,21 @@ export const assignSiswaToClass = async (req: Request, res: Response) => {
 };
 
 export const createOrtu = async (req: Request, res: Response) => {
-    const { nama, email, password, siswaIds } = req.body;
-    if (typeof nama !== 'string' || !nama.trim() || typeof email !== 'string' || !email.trim() || typeof password !== 'string' || password.length < 12 || !Array.isArray(siswaIds) || siswaIds.length === 0 || !siswaIds.every((id) => typeof id === 'string')) {
-        return res.status(400).json({ error: 'Nama, email, kata sandi minimal 12 karakter, dan minimal satu siswa wajib diisi.' });
+    const { nama, email, password, siswaIds, nik } = req.body;
+    if (typeof nama !== 'string' || !nama.trim() || typeof email !== 'string' || !email.trim() || typeof password !== 'string' || password.length < 12 || !Array.isArray(siswaIds) || siswaIds.length === 0 || !siswaIds.every((id) => typeof id === 'string') || typeof nik !== 'string' || !/^\d{16}$/.test(nik.trim())) {
+        return res.status(400).json({ error: 'Nama, NIK KTP 16 digit, email, kata sandi minimal 12 karakter, dan minimal satu siswa wajib diisi.' });
+    }
+    const cleanNik = nik.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Validasi keunikan absolut di seluruh sistem (anti-kloning orang tua)
+    const uniqueCheck = await assertUniqueUserIdentifier({
+        identifier: cleanNik,
+        email: normalizedEmail,
+        entityType: 'ORTU'
+    });
+    if (!uniqueCheck.ok) {
+        return res.status(409).json({ error: uniqueCheck.error });
     }
     const hashedPassword = await bcrypt.hash(password, 12);
     try {
@@ -777,9 +811,9 @@ export const createOrtu = async (req: Request, res: Response) => {
                 throw new Error('Satu atau lebih siswa tidak ditemukan atau sudah terhubung ke akun orang tua.');
             }
             const user = await tx.user.create({ data: { email: email.trim().toLowerCase(), password: hashedPassword, role: 'ORTU' } });
-            const ortu = await tx.ortu.create({ data: { nama: nama.trim(), userId: user.id } });
+            const ortu = await tx.ortu.create({ data: { nama: nama.trim(), nik: cleanNik, userId: user.id } });
             await tx.siswa.updateMany({ where: { id: { in: siswaIds } }, data: { ortuId: ortu.id } });
-            return { id: ortu.id, nama: ortu.nama, email: user.email, siswaTerhubung: students.length };
+            return { id: ortu.id, nama: ortu.nama, nik: ortu.nik, email: user.email, siswaTerhubung: students.length };
         });
         res.status(201).json({ data: parent });
     } catch (error) {

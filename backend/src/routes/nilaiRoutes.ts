@@ -9,8 +9,8 @@ router.use(verifyToken);
 // Untuk Siswa & Orang Tua melihat nilai/rapor
 router.get('/saya', requireRole(['SISWA', 'ORTU']), getNilaiSaya);
 
-// Untuk Admin & Guru menginput dan melihat rekap nilai
-router.post('/', requireRole(['ADMIN', 'GURU']), upsertNilai);
-router.get('/mapel', requireRole(['ADMIN', 'GURU']), getNilaiByMapel);
+// Untuk Admin & Guru (Mapel / Wali) menginput dan melihat rekap nilai
+router.post('/', requireRole(['ADMIN', 'GURU_MAPEL', 'GURU_WALI', 'GURU']), upsertNilai);
+router.get('/mapel', requireRole(['ADMIN', 'GURU_MAPEL', 'GURU_WALI', 'GURU']), getNilaiByMapel);
 
 export default router;

@@ -2,6 +2,18 @@ import { type Request, type Response, type NextFunction} from "express";
 import jwt from "jsonwebtoken";
 import { JWT_SECRET } from '../config/env.js';
 
+export const ROLES = {
+    ADMIN: 'ADMIN',
+    GURU_MAPEL: 'GURU_MAPEL',
+    GURU_WALI: 'GURU_WALI',
+    SISWA: 'SISWA',
+    ORTU: 'ORTU',
+    // Fallback legacy support
+    GURU: 'GURU'
+} as const;
+
+export type UserRole = typeof ROLES[keyof typeof ROLES];
+
 export interface AuthRequest extends Request {
     user?: {
         id: string;

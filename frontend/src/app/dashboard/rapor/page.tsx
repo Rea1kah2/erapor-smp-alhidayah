@@ -1,3 +1,4 @@
+// frontend/src/app/dashboard/rapor/page.tsx
 'use client';
 import { apiFetch } from "@/lib/api";
 import { errorMessage } from '@/lib/errors';
@@ -13,7 +14,9 @@ import {
   Printer,
   Heart,
   Smile,
-  Activity
+  Activity,
+  MessageSquare,
+  Send
 } from 'lucide-react';
 import PrintableRapor, { RaporData } from '../components/PrintableRapor';
 
@@ -42,6 +45,7 @@ interface NilaiItem {
 }
 
 interface CatatanRaporItem {
+  id?: string;
   siswaId?: string;
   sakit: number;
   izin: number;
@@ -52,6 +56,8 @@ interface CatatanRaporItem {
   deskripsiSosial: string | null;
   ekskul: Array<{ nama: string; predikat: string; keterangan: string }>;
   catatanWali: string;
+  catatanOrtu?: string | null;
+  catatanOrtuAt?: string | null;
   statusKenaikan?: string | null;
 }
 
@@ -60,6 +66,12 @@ export default function RaporSayaPage() {
   const [catatanList, setCatatanList] = useState<CatatanRaporItem[]>([]);
   const [siswaList, setSiswaList] = useState<Array<{ id: string; nama: string; nisn: string }>>([]);
   const [targetSiswaId, setTargetSiswaId] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string>('SISWA');
+
+  // Catatan Ortu States
+  const [editedNote, setEditedNote] = useState<string | null>(null);
+  const [isSavingOrtuNote, setIsSavingOrtuNote] = useState<boolean>(false);
+  const [saveOrtuNoteSuccess, setSaveOrtuNoteSuccess] = useState<string>('');
 
   const [semester, setSemester] = useState<string>('GANJIL');
   const [tahunAjaran, setTahunAjaran] = useState<string>('');
@@ -71,16 +83,25 @@ export default function RaporSayaPage() {
   const [printData, setPrintData] = useState<RaporData | null>(null);
   const [isLoadingPrint, setIsLoadingPrint] = useState<boolean>(false);
 
+  // Fetch role
+  useEffect(() => {
+    apiFetch('/api/auth/me')
+      .then(async (res) => {
+        if (res.ok) {
+          const profile = await res.json();
+          setUserRole(profile.user?.role || 'SISWA');
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const fetchNilaiSaya = useCallback(async () => {
     if (!tahunAjaran) return;
     setIsLoading(true);
     setErrorMsg('');
     try {
       const res = await apiFetch(
-        `/api/nilai/saya?semester=${semester}&tahunAjaran=${encodeURIComponent(tahunAjaran)}`,
-        {
-          headers: {}
-        }
+        `/api/nilai/saya?semester=${semester}&tahunAjaran=${encodeURIComponent(tahunAjaran)}`
       );
 
       if (!res.ok) {
@@ -93,10 +114,15 @@ export default function RaporSayaPage() {
         setNilaiList(data);
         if (data[0]?.siswa?.id) setTargetSiswaId(data[0].siswa.id);
       } else {
+        const loadedCatatan: CatatanRaporItem[] = data.catatanRaporList || (data.catatanRapor ? [data.catatanRapor] : []);
         setNilaiList(data.nilai || []);
-        setCatatanList(data.catatanRaporList || (data.catatanRapor ? [data.catatanRapor] : []));
+        setCatatanList(loadedCatatan);
         setSiswaList(data.siswaList || []);
-        setTargetSiswaId(data.siswaId || data.nilai?.[0]?.siswa?.id || null);
+        const sId = data.siswaId || data.nilai?.[0]?.siswa?.id || null;
+        setTargetSiswaId(sId);
+
+        // Reset parent note draft on new fetch
+        setEditedNote(null);
       }
     } catch (err: unknown) {
       console.error(err);
@@ -110,7 +136,40 @@ export default function RaporSayaPage() {
     queueMicrotask(() => { void fetchNilaiSaya(); });
   }, [fetchNilaiSaya]);
 
-  const catatanRapor = catatanList.find((item) => item.siswaId === targetSiswaId) || null;
+  const catatanRapor = catatanList.find((item) => !targetSiswaId || item.siswaId === targetSiswaId) || catatanList[0] || null;
+  const currentCatatanOrtu = editedNote !== null ? editedNote : (catatanRapor?.catatanOrtu || '');
+
+  const handleSaveCatatanOrtu = async () => {
+    const sId = targetSiswaId || nilaiList[0]?.siswa?.id;
+    if (!sId) {
+      setErrorMsg('ID Siswa tidak ditemukan.');
+      return;
+    }
+    setIsSavingOrtuNote(true);
+    setSaveOrtuNoteSuccess('');
+    setErrorMsg('');
+    try {
+      const res = await apiFetch(`/api/ortu/catatan/${sId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          semester,
+          tahunAjaran,
+          catatanOrtu: currentCatatanOrtu
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal menyimpan catatan orang tua');
+      setSaveOrtuNoteSuccess('Catatan orang tua berhasil disimpan ke lembar rapor semester!');
+      setEditedNote(null);
+      setTimeout(() => setSaveOrtuNoteSuccess(''), 4000);
+      await fetchNilaiSaya();
+    } catch (err) {
+      setErrorMsg(errorMessage(err));
+    } finally {
+      setIsSavingOrtuNote(false);
+    }
+  };
 
   useEffect(() => {
     apiFetch('/api/master/tahun-ajaran')
@@ -207,7 +266,6 @@ export default function RaporSayaPage() {
 
   const siswaInfo = nilaiList[0]?.siswa;
 
-  // Buka Pratinjau Lembar Cetak Rapor
   const handlePrintRapor = async () => {
     const sId = targetSiswaId || siswaInfo?.id;
     if (!sId) {
@@ -217,49 +275,52 @@ export default function RaporSayaPage() {
 
     setIsLoadingPrint(true);
     try {
-      const res = await apiFetch(`/api/wali/rapor/${sId}?semester=${semester}&tahunAjaran=${encodeURIComponent(tahunAjaran)}`, {
-        headers: {}
-      });
+      const res = await apiFetch(`/api/wali/rapor/${sId}?semester=${semester}&tahunAjaran=${encodeURIComponent(tahunAjaran)}`);
       if (!res.ok) throw new Error('Gagal mengambil data lembar rapor siswa');
       const data = await res.json();
       setPrintData(data);
     } catch (err: unknown) {
-      alert(errorMessage(err, 'Gagal memuat data rapor.'));
+      setErrorMsg(errorMessage(err, 'Gagal memuat pratinjau rapor.'));
     } finally {
       setIsLoadingPrint(false);
     }
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       
       {/* Header Halaman */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-[var(--green)]"></span>
-            <span className="text-xs uppercase tracking-wider font-semibold text-accent">SMP Al-Hidayah</span>
-          </div>
-          <h1 className="text-2xl font-bold text-label leading-tight mt-1 flex items-center gap-2.5">
-            <Award className="text-accent" size={26} />
-            E-Rapor Hasil Belajar Siswa
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-label flex items-center gap-2">
+            <Award className="text-primary" size={24} />
+            <span>Transparansi Hasil Belajar & Rapor</span>
           </h1>
-          <p className="text-sm text-label-secondary">
-            Laporan evaluasi akademik, nilai capaian akhir, catatan sikap, dan presensi terpadu.
+          <p className="text-xs sm:text-sm text-label-secondary mt-0.5">
+            Laporan evaluasi capaian kompetensi nilai akademik dan presensi peserta didik
           </p>
         </div>
 
-        {/* Filter Semester, Tahun & Tombol Cetak */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        {/* Filter Bar */}
+        <div className="flex flex-wrap items-center gap-2">
           {siswaList.length > 1 && (
-            <select value={targetSiswaId || ''} onChange={(e) => setTargetSiswaId(e.target.value)} className="h-10 px-3.5 rounded-full bg-bg-secondary text-label font-medium text-xs border border-separator/40">
-              {siswaList.map((siswa) => <option key={siswa.id} value={siswa.id}>{siswa.nama} ({siswa.nisn})</option>)}
+            <select 
+              value={targetSiswaId || ''} 
+              onChange={(e) => setTargetSiswaId(e.target.value)} 
+              className="h-9 px-3 rounded-lg bg-card border border-separator text-label text-xs font-semibold focus:border-primary outline-none cursor-pointer"
+            >
+              {siswaList.map((siswa) => (
+                <option key={siswa.id} value={siswa.id}>
+                  {siswa.nama} ({siswa.nisn})
+                </option>
+              ))}
             </select>
           )}
+
           <select
             value={semester}
             onChange={(e) => setSemester(e.target.value)}
-            className="h-10 px-3.5 rounded-full bg-bg-secondary text-label font-medium text-xs border border-separator/40 focus:ring-2 focus:ring-accent outline-none cursor-pointer"
+            className="h-9 px-3 rounded-lg bg-card border border-separator text-label text-xs font-semibold focus:border-primary outline-none cursor-pointer"
           >
             <option value="GANJIL">Semester Ganjil</option>
             <option value="GENAP">Semester Genap</option>
@@ -268,7 +329,7 @@ export default function RaporSayaPage() {
           <select
             value={tahunAjaran}
             onChange={(e) => setTahunAjaran(e.target.value)}
-            className="h-10 px-3.5 rounded-full bg-bg-secondary text-label font-medium text-xs border border-separator/40 focus:ring-2 focus:ring-accent outline-none cursor-pointer"
+            className="h-9 px-3 rounded-lg bg-card border border-separator text-label text-xs font-semibold focus:border-primary outline-none cursor-pointer"
           >
             {yearOptions.map((year) => <option key={year} value={year}>T.A. {year}</option>)}
           </select>
@@ -276,110 +337,111 @@ export default function RaporSayaPage() {
           <button
             onClick={handlePrintRapor}
             disabled={isLoadingPrint || groupedByMapel.length === 0}
-            className="flex items-center gap-2 px-5 h-10 rounded-full bg-accent text-white font-semibold text-xs shadow-md active:scale-95 transition-all disabled:opacity-50"
+            className="h-9 px-3.5 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-medium flex items-center gap-1.5 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
           >
-            <Printer size={16} />
-            <span>{isLoadingPrint ? 'Menyiapkan...' : 'Cetak / Unduh Rapor'}</span>
+            <Printer size={15} />
+            <span>{isLoadingPrint ? 'Menyiapkan...' : 'Cetak Rapor A4'}</span>
           </button>
         </div>
-      </header>
+      </div>
 
       {errorMsg && (
-        <div className="p-3.5 rounded-[16px] flex items-center gap-2.5 bg-[var(--red)]/15 text-[var(--red)] border border-[var(--red)]/30">
-          <AlertCircle size={18} className="shrink-0" />
-          <p className="text-sm font-medium">{errorMsg}</p>
+        <div className="p-3 rounded-lg flex items-center gap-2.5 bg-[var(--status-fail-bg)] text-[var(--status-fail)] border border-[var(--status-fail-border)] text-xs font-medium">
+          <AlertCircle size={16} className="shrink-0" />
+          <p>{errorMsg}</p>
         </div>
       )}
 
       {/* KPI Cards Ringkasan */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="glass p-5 flex flex-col gap-1.5" style={{ '--glass-radius': 'var(--radius-xl)' } as React.CSSProperties}>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-card border border-separator rounded-xl p-3.5 flex flex-col gap-1 shadow-sm">
           <div className="flex items-center justify-between text-label-secondary">
-            <span className="text-xs font-semibold uppercase">Rata-Rata Nilai</span>
-            <TrendingUp size={16} className="text-accent" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Rata-Rata Nilai</span>
+            <TrendingUp size={14} className="text-accent" />
           </div>
-          <span className="text-3xl font-bold tabular-nums text-label">{stats.rataRata}</span>
-          <span className="text-xs text-label-secondary">Akumulasi Bobot NA</span>
+          <span className="text-2xl font-bold tabular-nums text-label">{stats.rataRata}</span>
+          <span className="text-[11px] text-label-secondary">Skala Penilaian 0-100</span>
         </div>
 
-        <div className="glass p-5 flex flex-col gap-1.5" style={{ '--glass-radius': 'var(--radius-xl)' } as React.CSSProperties}>
+        <div className="bg-card border border-separator rounded-xl p-3.5 flex flex-col gap-1 shadow-sm">
           <div className="flex items-center justify-between text-label-secondary">
-            <span className="text-xs font-semibold uppercase">Mapel Tuntas</span>
-            <CheckCircle2 size={16} className="text-[var(--green)]" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Ketuntasan KKM</span>
+            <CheckCircle2 size={14} className="text-primary" />
           </div>
-          <span className="text-3xl font-bold tabular-nums text-label">
-            {stats.tuntasCount} / {stats.scoredCount}
+          <span className="text-2xl font-bold tabular-nums text-label">
+            {stats.tuntasCount} <span className="text-sm font-normal text-label-secondary">/ {stats.scoredCount}</span>
           </span>
-          <span className="text-xs text-label-secondary">Mencapai KKM</span>
+          <span className="text-[11px] text-label-secondary">Mata Pelajaran Tuntas</span>
         </div>
 
-        <div className="glass p-5 flex flex-col gap-1.5" style={{ '--glass-radius': 'var(--radius-xl)' } as React.CSSProperties}>
+        <div className="bg-card border border-separator rounded-xl p-3.5 flex flex-col gap-1 shadow-sm">
           <div className="flex items-center justify-between text-label-secondary">
-            <span className="text-xs font-semibold uppercase">Kehadiran (Presensi)</span>
-            <Activity size={16} className="text-[#ff9500]" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Kehadiran (Presensi)</span>
+            <Activity size={14} className="text-accent" />
           </div>
-          <span className="text-xl font-bold tabular-nums text-label mt-1">
+          <span className="text-lg font-bold font-mono text-label mt-0.5">
             {catatanRapor ? `${catatanRapor.sakit}S / ${catatanRapor.izin}I / ${catatanRapor.alfa}A` : '-'}
           </span>
-          <span className="text-xs text-label-secondary">Sakit / Izin / Alfa</span>
+          <span className="text-[11px] text-label-secondary">Sakit / Izin / Alfa</span>
         </div>
 
-        <div className="glass p-5 flex flex-col gap-1.5" style={{ '--glass-radius': 'var(--radius-xl)' } as React.CSSProperties}>
+        <div className="bg-card border border-separator rounded-xl p-3.5 flex flex-col gap-1 shadow-sm">
           <div className="flex items-center justify-between text-label-secondary">
-            <span className="text-xs font-semibold uppercase">Status Kelulusan</span>
-            <School size={16} className="text-[#af52de]" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Status Evaluasi</span>
+            <School size={14} className="text-primary" />
           </div>
-          <span className="text-lg font-bold text-label mt-1">
-            {stats.scoredCount === 0 ? 'Belum Dievaluasi' : stats.tuntasCount === stats.scoredCount ? 'Tuntas Semua KKM' : 'Perlu Remedial'}
+          <span className="text-sm font-bold text-label mt-1 truncate">
+            {stats.scoredCount === 0 ? 'Belum Dievaluasi' : stats.tuntasCount === stats.scoredCount ? 'Tuntas Seluruh KKM' : 'Perlu Remedial'}
           </span>
-          <span className="text-xs text-label-secondary">Standar SMP Al-Hidayah</span>
+          <span className="text-[11px] text-label-secondary">Standar SMP Al-Hidayah</span>
         </div>
       </div>
 
-      {/* Tabel Rapor Rinci */}
-      <section className="bg-bg-secondary rounded-[28px] shadow-[0_4px_16px_rgba(0,0,0,0.08)] overflow-hidden flex flex-col">
-        <div className="p-5 flex items-center justify-between border-b border-separator/40">
+      {/* Tabel Capaian Akademik Rinci */}
+      <section className="bg-card rounded-xl border border-separator shadow-sm overflow-hidden flex flex-col">
+        <div className="p-3.5 sm:p-4 flex items-center justify-between border-b border-separator bg-bg/50">
           <div>
-            <h3 className="font-semibold text-label text-base">Capaian Akademik Mata Pelajaran</h3>
+            <h2 className="text-sm font-semibold text-label">Rincian Capaian Mata Pelajaran</h2>
             {siswaInfo && (
               <p className="text-xs text-label-secondary mt-0.5">
-                Peserta Didik: <strong>{siswaInfo.nama}</strong> ({siswaInfo.nisn}) &bull; Kelas: {siswaInfo.kelas?.nama || '-'}
+                Peserta Didik: <strong className="text-label">{siswaInfo.nama}</strong> ({siswaInfo.nisn}) &bull; Kelas: {siswaInfo.kelas?.nama || '-'}
               </p>
             )}
           </div>
           <button 
             onClick={fetchNilaiSaya}
-            className="p-2 rounded-full hover:bg-fill text-label-secondary transition-colors"
-            title="Refresh Data"
+            className="p-1.5 rounded-lg border border-separator hover:bg-card-subtle text-label-secondary transition-colors"
+            title="Refresh Nilai"
           >
-            <RefreshCw size={16} className={isLoading ? 'animate-spin text-accent' : ''} />
+            <RefreshCw size={14} className={isLoading ? 'animate-spin text-primary' : ''} />
           </button>
         </div>
 
         {groupedByMapel.length === 0 ? (
-          <div className="p-12 text-center text-label-secondary flex flex-col items-center gap-3">
-            <Inbox size={40} className="text-label-tertiary" />
-            <p className="font-medium text-sm">Belum ada data nilai pada semester ini.</p>
+          <div className="p-10 text-center text-label-secondary flex flex-col items-center gap-2">
+            <Inbox size={36} className="text-label-tertiary" />
+            <p className="font-semibold text-sm text-label">Belum ada data nilai</p>
+            <p className="text-xs text-label-secondary">Nilai untuk semester ini belum diinput oleh dewan guru.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-fill/40 text-label-secondary text-xs uppercase font-semibold border-b border-separator/40">
-                <tr>
-                  <th className="py-3 px-4">Mata Pelajaran</th>
-                  <th className="py-3 px-4 text-center">KKM</th>
-                  <th className="py-3 px-4 text-center">Tugas (40%)</th>
-                  <th className="py-3 px-4 text-center">UTS (30%)</th>
-                  <th className="py-3 px-4 text-center">UAS (30%)</th>
-                  <th className="py-3 px-4 text-center font-bold">Nilai Akhir</th>
-                  <th className="py-3 px-4 text-center">Predikat</th>
-                  <th className="py-3 px-4 text-center">Status</th>
+            <table className="w-full text-left border-collapse min-w-[700px]">
+              <thead>
+                <tr className="text-xs font-semibold text-label-secondary uppercase tracking-wider border-b border-separator bg-card">
+                  <th className="px-4 py-3">Mata Pelajaran</th>
+                  <th className="px-3 py-3 text-center w-20">KKM</th>
+                  <th className="px-3 py-3 text-center w-24">Tugas (40%)</th>
+                  <th className="px-3 py-3 text-center w-24">UTS (30%)</th>
+                  <th className="px-3 py-3 text-center w-24">UAS (30%)</th>
+                  <th className="px-3 py-3 text-center w-24">Nilai Akhir</th>
+                  <th className="px-3 py-3 text-center w-20">Predikat</th>
+                  <th className="px-3 py-3 text-center w-28">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-separator/30 text-label">
+              <tbody className="text-sm divide-y divide-separator">
                 {groupedByMapel.map((item) => (
-                  <tr key={item.mapel.id} className="hover:bg-fill/30 transition-colors">
-                    <td className="py-3.5 px-4 font-semibold">
+                  <tr key={item.mapel.id} className="hover:bg-bg/60 transition-colors">
+                    <td className="px-4 py-2.5 font-medium text-label">
                       {item.mapel.nama}
                       {item.mapel.guru && (
                         <span className="block text-xs font-normal text-label-secondary mt-0.5">
@@ -387,41 +449,41 @@ export default function RaporSayaPage() {
                         </span>
                       )}
                     </td>
-                    <td className="py-3.5 px-4 text-center font-mono text-label-secondary font-medium">
+                    <td className="px-3 py-2.5 text-center font-mono text-xs text-label-secondary tabular-nums">
                       {item.mapel.kkm}
                     </td>
-                    <td className="py-3.5 px-4 text-center font-mono">
+                    <td className="px-3 py-2.5 text-center font-mono text-xs tabular-nums">
                       {item.tugas !== null ? item.tugas : <span className="text-label-tertiary">-</span>}
                     </td>
-                    <td className="py-3.5 px-4 text-center font-mono">
+                    <td className="px-3 py-2.5 text-center font-mono text-xs tabular-nums">
                       {item.uts !== null ? item.uts : <span className="text-label-tertiary">-</span>}
                     </td>
-                    <td className="py-3.5 px-4 text-center font-mono">
+                    <td className="px-3 py-2.5 text-center font-mono text-xs tabular-nums">
                       {item.uas !== null ? item.uas : <span className="text-label-tertiary">-</span>}
                     </td>
-                    <td className="py-3.5 px-4 text-center font-mono font-bold text-base">
+                    <td className="px-3 py-2.5 text-center font-mono font-bold text-sm tabular-nums">
                       {item.finalScore !== null ? item.finalScore : <span className="text-label-tertiary">-</span>}
                     </td>
-                    <td className="py-3.5 px-4 text-center font-bold">
-                      <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs ${
-                        item.predikat === 'A' ? 'bg-[var(--green)]/15 text-[var(--green)]' :
-                        item.predikat === 'B' ? 'bg-accent/15 text-accent' :
-                        item.predikat === 'C' ? 'bg-[#ff9500]/15 text-[#ff9500]' :
-                        'bg-[var(--red)]/15 text-[var(--red)]'
+                    <td className="px-3 py-2.5 text-center font-bold text-xs">
+                      <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs ${
+                        item.predikat === 'A' ? 'bg-primary-subtle text-primary border border-primary-border' :
+                        item.predikat === 'B' ? 'bg-accent/15 text-accent border border-accent/30' :
+                        item.predikat === 'C' ? 'bg-amber-500/15 text-amber-600 border border-amber-500/30' :
+                        'bg-[var(--status-fail-bg)] text-[var(--status-fail)] border border-[var(--status-fail-border)]'
                       }`}>
                         {item.predikat}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 text-center font-medium">
+                    <td className="px-3 py-2.5 text-center">
                       {item.finalScore === null ? (
-                        <span className="text-xs text-label-tertiary">Belum Lengkap</span>
+                        <span className="text-[11px] px-2 py-0.5 rounded bg-fill text-label-tertiary">Belum Lengkap</span>
                       ) : item.passed ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-[var(--green)] font-semibold">
-                          <CheckCircle2 size={14} /> Tuntas
+                        <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-primary-subtle text-primary border border-primary-border font-semibold">
+                          <CheckCircle2 size={12} /> Tuntas
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-xs text-[var(--red)] font-semibold">
-                          <AlertCircle size={14} /> Belum Tuntas
+                        <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-[var(--status-fail-bg)] text-[var(--status-fail)] border border-[var(--status-fail-border)] font-semibold">
+                          <AlertCircle size={12} /> Remedial
                         </span>
                       )}
                     </td>
@@ -433,98 +495,162 @@ export default function RaporSayaPage() {
         )}
       </section>
 
-      {/* EVALUASI SIKAP, EKSKUL & CATATAN WALI KELAS */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Evaluasi Sikap & Catatan Wali Kelas */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         
-        {/* Perkembangan Sikap & Kepribadian */}
-        <div className="bg-bg-secondary rounded-[28px] p-6 shadow-[0_4px_16px_rgba(0,0,0,0.08)] flex flex-col gap-4">
+        {/* Sikap */}
+        <div className="bg-card rounded-xl border border-separator p-5 shadow-sm flex flex-col gap-3">
           <div className="flex items-center gap-2">
-            <Smile className="text-accent" size={20} />
-            <h3 className="font-semibold text-label text-base">Perkembangan Sikap & Karakter</h3>
+            <Smile className="text-primary" size={18} />
+            <h2 className="text-sm font-bold text-label">Perkembangan Sikap & Karakter</h2>
           </div>
 
-          <div className="flex flex-col gap-3">
-            <div className="p-3.5 rounded-[18px] bg-bg flex flex-col gap-1">
+          <div className="flex flex-col gap-2.5">
+            <div className="p-3 rounded-lg bg-bg border border-separator flex flex-col gap-1">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-label">Sikap Spiritual</span>
-                <span className="px-2 py-0.5 rounded-full bg-[var(--green)]/15 text-[var(--green)] text-xs font-bold">
+                <span className="px-2 py-0.5 rounded bg-primary-subtle text-primary border border-primary-border text-[11px] font-bold">
                   Predikat {catatanRapor?.sikapSpiritual || '-'}
                 </span>
               </div>
-              <p className="text-xs text-label-secondary mt-1 leading-relaxed">
-                {catatanRapor?.deskripsiSpiritual || 'Belum ada penilaian.'}
+              <p className="text-xs text-label-secondary mt-0.5 leading-relaxed">
+                {catatanRapor?.deskripsiSpiritual || 'Belum ada catatan pembinaan.'}
               </p>
             </div>
 
-            <div className="p-3.5 rounded-[18px] bg-bg flex flex-col gap-1">
+            <div className="p-3 rounded-lg bg-bg border border-separator flex flex-col gap-1">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-label">Sikap Sosial</span>
-                <span className="px-2 py-0.5 rounded-full bg-accent/15 text-accent text-xs font-bold">
+                <span className="px-2 py-0.5 rounded bg-accent/15 text-accent border border-accent/30 text-[11px] font-bold">
                   Predikat {catatanRapor?.sikapSosial || '-'}
                 </span>
               </div>
-              <p className="text-xs text-label-secondary mt-1 leading-relaxed">
-                {catatanRapor?.deskripsiSosial || 'Belum ada penilaian.'}
+              <p className="text-xs text-label-secondary mt-0.5 leading-relaxed">
+                {catatanRapor?.deskripsiSosial || 'Belum ada catatan pembinaan.'}
               </p>
             </div>
           </div>
         </div>
 
         {/* Ekstrakurikuler & Catatan Wali Kelas */}
-        <div className="bg-bg-secondary rounded-[28px] p-6 shadow-[0_4px_16px_rgba(0,0,0,0.08)] flex flex-col justify-between gap-4">
+        <div className="bg-card rounded-xl border border-separator p-5 shadow-sm flex flex-col justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Heart className="text-[#ff9500]" size={20} />
-              <h3 className="font-semibold text-label text-base">Ekstrakurikuler & Catatan Wali</h3>
+            <div className="flex items-center gap-2 mb-2">
+              <Heart className="text-accent" size={18} />
+              <h2 className="text-sm font-bold text-label">Ekstrakurikuler & Catatan Bimbingan</h2>
             </div>
 
-            {/* Ekstrakurikuler */}
-            <div className="mb-4">
-              <span className="text-xs uppercase font-bold text-label-secondary tracking-wider block mb-2">
+            <div className="mb-3">
+              <span className="text-xs font-semibold text-label-secondary block mb-1.5">
                 Kegiatan Ekstrakurikuler:
               </span>
               {catatanRapor?.ekskul && Array.isArray(catatanRapor.ekskul) && catatanRapor.ekskul.length > 0 ? (
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-1.5">
                   {catatanRapor.ekskul.map((eks, idx) => (
-                    <div key={idx} className="p-2.5 rounded-[14px] bg-bg flex items-center justify-between text-xs">
+                    <div key={idx} className="p-2 rounded-lg bg-bg border border-separator flex items-center justify-between text-xs">
                       <div>
                         <span className="font-semibold text-label">{eks.nama}</span>
-                        {eks.keterangan && <p className="text-[11px] text-label-secondary mt-0.5">{eks.keterangan}</p>}
+                        {eks.keterangan && <p className="text-[11px] text-label-secondary">{eks.keterangan}</p>}
                       </div>
-                      <span className="px-2 py-0.5 rounded-full bg-accent/15 text-accent font-bold">
+                      <span className="px-2 py-0.5 rounded bg-accent/15 text-accent font-bold font-mono">
                         {eks.predikat}
                       </span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-label-secondary italic">{catatanRapor ? 'Tidak ada kegiatan ekstrakurikuler yang dicatat.' : 'Belum ada catatan ekstrakurikuler.'}</p>
+                <p className="text-xs text-label-tertiary italic">
+                  {catatanRapor ? 'Tidak ada kegiatan ekstrakurikuler yang dicatat.' : 'Belum ada catatan ekstrakurikuler.'}
+                </p>
               )}
             </div>
 
-            {/* Catatan Wali Kelas */}
-            <div className="p-3.5 rounded-[18px] bg-bg flex flex-col gap-1 border border-separator/30">
-              <span className="text-xs font-semibold text-label">Pesan & Evaluasi Wali Kelas:</span>
+            <div className="p-3 rounded-lg bg-bg border border-separator flex flex-col gap-1">
+              <span className="text-xs font-semibold text-label">Pesan Bimbingan Wali Kelas:</span>
               <p className="text-xs text-label-secondary italic leading-relaxed mt-0.5">
-                {catatanRapor?.catatanWali ? `“${catatanRapor.catatanWali}”` : 'Belum ada catatan.'}
+                {catatanRapor?.catatanWali ? `"${catatanRapor.catatanWali}"` : 'Belum ada catatan.'}
               </p>
             </div>
           </div>
 
-          {/* Tombol Cetak Bawah */}
           <button
             onClick={handlePrintRapor}
             disabled={isLoadingPrint || groupedByMapel.length === 0}
-            className="w-full h-11 rounded-full glass glass-accent text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md disabled:opacity-50"
+            className="w-full h-9 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-medium flex items-center justify-center gap-2 shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
           >
-            <Printer size={16} />
-            <span>Cetak Lembar Rapor Lengkap (PDF)</span>
+            <Printer size={15} />
+            <span>Cetak Pratinjau Lembar Rapor Resmi (A4)</span>
           </button>
         </div>
 
       </div>
 
-      {/* MODAL PRINT PREVIEW */}
+      {/* Catatan & Masukan Orang Tua (Tiap Akhir Semester) */}
+      <div className="bg-card rounded-xl border border-separator p-5 shadow-sm flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="text-primary" size={18} />
+            <h2 className="text-sm font-bold text-label">
+              Catatan & Masukan Orang Tua / Wali Siswa (Akhir Semester)
+            </h2>
+          </div>
+          {catatanRapor?.catatanOrtuAt && (
+            <span className="text-[11px] text-label-tertiary">
+              Tercatat pada dokumen rapor: {String(catatanRapor.catatanOrtuAt).slice(0, 10)}
+            </span>
+          )}
+        </div>
+
+        {saveOrtuNoteSuccess && (
+          <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-xs font-medium flex items-center gap-2">
+            <CheckCircle2 size={15} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <span>{saveOrtuNoteSuccess}</span>
+          </div>
+        )}
+
+        {userRole === 'ORTU' ? (
+          <div className="flex flex-col gap-2.5">
+            <p className="text-xs text-label-secondary leading-relaxed">
+              Bapak/Ibu Orang Tua dapat memberikan catatan, tanggapan, atau pesan motivasi atas hasil belajar ananda pada semester {semester === 'GANJIL' ? 'Ganjil' : 'Genap'} T.A. {tahunAjaran}. Catatan ini akan terdokumentasi resmi pada lembar cetak rapor.
+            </p>
+            <textarea
+              rows={3}
+              placeholder="Tuliskan catatan, tanggapan, atau pesan orang tua di sini..."
+              value={currentCatatanOrtu}
+              onChange={(e) => setEditedNote(e.target.value)}
+              className="w-full p-3 rounded-lg border border-separator bg-bg text-sm text-label placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-y"
+            />
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={handleSaveCatatanOrtu}
+                disabled={isSavingOrtuNote}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-semibold shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                <Send size={14} />
+                <span>{isSavingOrtuNote ? 'Menyimpan...' : 'Simpan Catatan Orang Tua'}</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="p-3.5 rounded-lg bg-bg border border-separator text-xs">
+            {catatanRapor?.catatanOrtu ? (
+              <div>
+                <span className="font-semibold text-label block mb-1">Catatan dari Orang Tua:</span>
+                <p className="text-label-secondary italic leading-relaxed">
+                  &ldquo;{catatanRapor.catatanOrtu}&rdquo;
+                </p>
+              </div>
+            ) : (
+              <p className="text-label-tertiary italic">
+                Orang tua / wali murid belum mengisi catatan untuk semester ini.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Modal Cetak Rapor */}
       {printData && (
         <PrintableRapor
           data={printData}

@@ -1,117 +1,425 @@
-/* frontend/src/app/globals.css */
+/* frontend/src/app/global.css */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Lora:ital,wght@0,400..700;1,400..700&family=Nunito:ital,wght@0,300..800;1,300..800&display=swap');
 @import "tailwindcss";
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme static {
-  --radius-xs: 8px;
-  --radius-sm: 12px;
-  --radius-md: 16px;
-  --radius-lg: 20px;
-  --radius-xl: 28px;
-  --radius-2xl: 36px;
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
   --radius-full: 9999px;
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", var(--font-inter), "Inter", system-ui, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, var(--font-inter), sans-serif;
+  --font-serif: var(--font-lora), Georgia, Cambria, serif;
 }
 
-
 :root {
-  color-scheme: light dark;
-  --glass-intensity: 0.5;
-  --glass-hl-scale: 1;
-
-  --accent: #007aff;
-  --accent-strong: #0062cc;
-  --green: #34c759;
-  --red: #ff3b30;
+  color-scheme: light;
+  --font-inter: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-app: var(--font-inter);
+  --font-lora: 'Lora', Georgia, Cambria, 'Times New Roman', serif;
+  --font-nunito: 'Nunito', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   
-  --bg: #ffffff;
-  --bg-secondary: #f2f2f7;
-  --label: #000000;
-  --label-secondary: rgb(60 60 67 / 0.6);
-  --label-tertiary: rgb(60 60 67 / 0.3);
-  --separator: rgb(60 60 67 / 0.29);
-  --fill: rgb(120 120 128 / 0.2);
+  /* Academic Heritage: Al-Hidayah Deep Emerald & Warm Brass */
+  --primary: #14532d;
+  --primary-hover: #166534;
+  --primary-subtle: #f0fdf4;
+  --primary-border: #bbf7d0;
 
-  --glass-tint-rgb: 255 255 255;
-  --glass-rim-rgb: 255 255 255;
-  --glass-shadow-rgb: 0 0 0;
+  --accent: #b45309;
+  --accent-hover: #92400e;
+  --accent-subtle: #fef3c7;
+  --accent-border: #fde68a;
+
+  /* Surfaces: Crisp Paper */
+  --bg: #f8fafc;
+  --bg-secondary: #f1f5f9;
+  --card: #ffffff;
+  --card-subtle: #f8fafc;
   
-  --dur-fast: 150ms;
-  --dur-base: 250ms;
-  --dur-slow: 400ms;
-  --ease-out: cubic-bezier(0.32, 0.72, 0, 1);
+  /* Text & Labels (WCAG AA Compliant) */
+  --label: #0f172a;
+  --label-secondary: #475569;
+  --label-tertiary: #94a3b8;
+  --separator: #e2e8f0;
+  --separator-strong: #cbd5e1;
+  --fill: #f1f5f9;
+
+  /* Semantic Academic Status */
+  --status-pass: #15803d;
+  --status-pass-bg: #f0fdf4;
+  --status-pass-border: #bbf7d0;
+
+  --status-fail: #b91c1c;
+  --status-fail-bg: #fef2f2;
+  --status-fail-border: #fecaca;
+
+  --status-dirty: #d97706;
+  --status-dirty-bg: #fffbeb;
+  --status-dirty-border: #fef3c7;
+
+  /* Frosted Glass Base */
+  --glass-bg-rgb: 255 255 255;
+  --glass-border-rgb: 226 232 240;
 }
 
 [data-theme="dark"] {
-  --glass-hl-scale: 0.6;
-  --accent: #0a84ff;
-  --accent-strong: #0062cc;
-  --bg: #000000;
-  --bg-secondary: #1c1c1e;
-  --label: #ffffff;
-  --label-secondary: rgb(235 235 245 / 0.6);
-  --label-tertiary: rgb(235 235 245 / 0.3);
-  --separator: rgb(84 84 88 / 0.6);
-  --fill: rgb(120 120 128 / 0.36);
-  --glass-tint-rgb: 28 28 30;
+  color-scheme: dark;
+
+  /* Deep Obsidian Emerald */
+  --primary: #22c55e;
+  --primary-hover: #16a34a;
+  --primary-subtle: #143522;
+  --primary-border: #1d5334;
+
+  --accent: #f59e0b;
+  --accent-hover: #d97706;
+  --accent-subtle: #3d2607;
+  --accent-border: #633c0b;
+
+  --bg: #09120e;
+  --bg-secondary: #111e17;
+  --card: #14241c;
+  --card-subtle: #192e24;
+
+  --label: #f8fafc;
+  --label-secondary: #94a3b8;
+  --label-tertiary: #64748b;
+  --separator: #22382c;
+  --separator-strong: #2f4e3d;
+  --fill: #192e24;
+
+  --status-pass: #4ade80;
+  --status-pass-bg: #112e1b;
+  --status-pass-border: #1b532e;
+
+  --status-fail: #f87171;
+  --status-fail-bg: #351515;
+  --status-fail-border: #5c1e1e;
+
+  --status-dirty: #fbbf24;
+  --status-dirty-bg: #382509;
+  --status-dirty-border: #5c3f0f;
+
+  --glass-bg-rgb: 18 32 25;
+  --glass-border-rgb: 34 56 44;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ROLE-SPECIFIC IDENTITY: TOTAL THEME SWAP & TYPOGRAPHY
+   ════════════════════════════════════════════════════════════════ */
+
+/* 1. ADMIN: Deep Navy — Institutional & Authoritative */
+[data-role="ADMIN"] {
+  --primary: #1e3a5f;
+  --primary-hover: #1e40af;
+  --primary-subtle: #eff6ff;
+  --primary-border: #bfdbfe;
+  --accent: #1d4ed8;
+  --accent-hover: #1e40af;
+  --accent-subtle: #dbeafe;
+  --accent-border: #93c5fd;
+  --font-app: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+[data-role="ADMIN"][data-theme="dark"],
+[data-theme="dark"] [data-role="ADMIN"],
+[data-theme="dark"][data-role="ADMIN"] {
+  --primary: #60a5fa;
+  --primary-hover: #93c5fd;
+  --primary-subtle: #172554;
+  --primary-border: #1e3a8a;
+  --accent: #38bdf8;
+  --accent-hover: #7dd3fc;
+  --accent-subtle: #082f49;
+  --accent-border: #0369a1;
+  --bg: #090d16;
+  --bg-secondary: #0f172a;
+  --card: #131d31;
+  --card-subtle: #1a2742;
+  --separator: #1e293b;
+  --separator-strong: #334155;
+  --fill: #1a2742;
+}
+
+/* 2. GURU_MAPEL: Deep Violet / Purple — Academic & Scholarly */
+[data-role="GURU_MAPEL"] {
+  --primary: #5b21b6;
+  --primary-hover: #6d28d9;
+  --primary-subtle: #f5f3ff;
+  --primary-border: #ddd6fe;
+  --accent: #7c3aed;
+  --accent-hover: #6d28d9;
+  --accent-subtle: #ede9fe;
+  --accent-border: #c4b5fd;
+  --bg: #faf7fd;
+  --bg-secondary: #f3eef9;
+  --font-app: var(--font-lora), Georgia, Cambria, serif;
+}
+[data-role="GURU_MAPEL"][data-theme="dark"],
+[data-theme="dark"] [data-role="GURU_MAPEL"],
+[data-theme="dark"][data-role="GURU_MAPEL"] {
+  --primary: #a78bfa;
+  --primary-hover: #c4b5fd;
+  --primary-subtle: #2e1065;
+  --primary-border: #4c1d95;
+  --accent: #c084fc;
+  --accent-hover: #d8b4fe;
+  --accent-subtle: #3b0764;
+  --accent-border: #581c87;
+  --bg: #0e0a16;
+  --bg-secondary: #171124;
+  --card: #1e1530;
+  --card-subtle: #271c3e;
+  --separator: #31234f;
+  --separator-strong: #45326e;
+  --fill: #271c3e;
+}
+
+/* 3. GURU_WALI: Deep Teal — Mentorship, Warm Guidance */
+[data-role="GURU_WALI"] {
+  --primary: #0f766e;
+  --primary-hover: #0d9488;
+  --primary-subtle: #f0fdfa;
+  --primary-border: #99f6e4;
+  --accent: #0d9488;
+  --accent-hover: #0f766e;
+  --accent-subtle: #ccfbf1;
+  --accent-border: #5eead4;
+  --bg: #f6fcfb;
+  --bg-secondary: #eaf7f5;
+  --font-app: var(--font-nunito), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+[data-role="GURU_WALI"][data-theme="dark"],
+[data-theme="dark"] [data-role="GURU_WALI"],
+[data-theme="dark"][data-role="GURU_WALI"] {
+  --primary: #2dd4bf;
+  --primary-hover: #5eead4;
+  --primary-subtle: #042f2e;
+  --primary-border: #115e59;
+  --accent: #14b8a6;
+  --accent-hover: #2dd4bf;
+  --accent-subtle: #134e4a;
+  --accent-border: #0f766e;
+  --bg: #071312;
+  --bg-secondary: #0d1e1c;
+  --card: #122825;
+  --card-subtle: #183330;
+  --separator: #1f423e;
+  --separator-strong: #2a5a54;
+  --fill: #183330;
+}
+
+/* 4. SISWA: Sky Blue — Energetic, Optimistic & Fresh */
+[data-role="SISWA"] {
+  --primary: #0369a1;
+  --primary-hover: #0284c7;
+  --primary-subtle: #f0f9ff;
+  --primary-border: #bae6fd;
+  --accent: #0284c7;
+  --accent-hover: #0369a1;
+  --accent-subtle: #e0f2fe;
+  --accent-border: #7dd3fc;
+  --bg: #f8fafc;
+  --bg-secondary: #f0f7fb;
+  --font-app: var(--font-nunito), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+[data-role="SISWA"][data-theme="dark"],
+[data-theme="dark"] [data-role="SISWA"],
+[data-theme="dark"][data-role="SISWA"] {
+  --primary: #38bdf8;
+  --primary-hover: #7dd3fc;
+  --primary-subtle: #082f49;
+  --primary-border: #075985;
+  --accent: #0ea5e9;
+  --accent-hover: #38bdf8;
+  --accent-subtle: #0c4a6e;
+  --accent-border: #0369a1;
+  --bg: #081119;
+  --bg-secondary: #0e1a26;
+  --card: #142435;
+  --card-subtle: #1a2e44;
+  --separator: #203952;
+  --separator-strong: #2c4d6f;
+  --fill: #1a2e44;
+}
+
+/* 5. ORTU: Amber / Warm Ochre — Trust, Family & Nurturing */
+[data-role="ORTU"] {
+  --primary: #92400e;
+  --primary-hover: #b45309;
+  --primary-subtle: #fff7ed;
+  --primary-border: #fed7aa;
+  --accent: #b45309;
+  --accent-hover: #92400e;
+  --accent-subtle: #ffedd5;
+  --accent-border: #fdba74;
+  --bg: #fdfbf7;
+  --bg-secondary: #f9f5ec;
+  --font-app: var(--font-lora), Georgia, Cambria, serif;
+}
+[data-role="ORTU"][data-theme="dark"],
+[data-theme="dark"] [data-role="ORTU"],
+[data-theme="dark"][data-role="ORTU"] {
+  --primary: #fbbf24;
+  --primary-hover: #fcd34d;
+  --primary-subtle: #451a03;
+  --primary-border: #78350f;
+  --accent: #f59e0b;
+  --accent-hover: #fbbf24;
+  --accent-subtle: #3d1c02;
+  --accent-border: #92400e;
+  --bg: #140d07;
+  --bg-secondary: #1f150c;
+  --card: #291c10;
+  --card-subtle: #362516;
+  --separator: #47321e;
+  --separator-strong: #5e4328;
+  --fill: #362516;
+}
+
+/* Role-Specific Typography Cascade */
+[data-role="GURU_MAPEL"] h1,
+[data-role="GURU_MAPEL"] h2,
+[data-role="GURU_MAPEL"] h3,
+[data-role="ORTU"] h1,
+[data-role="ORTU"] h2,
+[data-role="ORTU"] h3 {
+  font-family: var(--font-lora), Georgia, serif;
+}
+
+[data-role="GURU_WALI"] h1,
+[data-role="GURU_WALI"] h2,
+[data-role="GURU_WALI"] h3,
+[data-role="SISWA"] h1,
+[data-role="SISWA"] h2,
+[data-role="SISWA"] h3 {
+  font-family: var(--font-nunito), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+[data-role="ADMIN"] h1,
+[data-role="ADMIN"] h2,
+[data-role="ADMIN"] h3 {
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 @theme inline {
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-subtle: var(--primary-subtle);
   --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-subtle: var(--accent-subtle);
   --color-label: var(--label);
   --color-label-secondary: var(--label-secondary);
+  --color-label-tertiary: var(--label-tertiary);
   --color-bg: var(--bg);
   --color-bg-secondary: var(--bg-secondary);
+  --color-card: var(--card);
+  --color-card-subtle: var(--card-subtle);
   --color-separator: var(--separator);
+  --color-separator-strong: var(--separator-strong);
   --color-fill: var(--fill);
 }
 
-@utility glass {
-  --glass-i: clamp(0, calc(var(--glass-intensity) + var(--glass-bias, 0)), 1);
-  --glass-blur: calc(var(--glass-i) * 36px);
-  --glass-saturate: calc(100% + var(--glass-i) * 80%);
-  --glass-tint-alpha: calc(0.02 + var(--glass-i) * 0.94);
-  --glass-rim-alpha: calc((0.15 + var(--glass-i) * 0.35) * var(--glass-hl-scale));
-  --glass-spec-alpha: calc((0.20 + var(--glass-i) * 0.50) * var(--glass-hl-scale));
-  --glass-edge-alpha: calc(0.02 + var(--glass-i) * 0.12);
-  --glass-shadow-alpha: calc(0.02 + var(--glass-i) * 0.16);
-
-  position: relative;
-  isolation: isolate;
-  border-radius: var(--glass-radius, var(--radius-lg));
-  background: rgb(var(--glass-tint-rgb) / var(--glass-tint-alpha));
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  box-shadow:
-    inset 0 1px 0 rgb(var(--glass-rim-rgb) / var(--glass-spec-alpha)),
-    inset 0 0 0 1px rgb(var(--glass-rim-rgb) / var(--glass-rim-alpha)),
-    0 0 0 0.5px rgb(0 0 0 / var(--glass-edge-alpha)),
-    0 8px 32px rgb(var(--glass-shadow-rgb) / var(--glass-shadow-alpha));
+/* Subtle Translucency: Strictly for Sidebar & Modals */
+.glass {
+  background: rgba(var(--glass-bg-rgb), 0.88);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--separator);
 }
 
-@utility glass-thin { --glass-bias: -0.25; }
-@utility glass-thick { --glass-bias: 0.25; }
-@utility glass-accent { 
-  background: color-mix(in srgb, var(--accent-strong) 88%, transparent); 
-  color: #fff; 
+.glass-thick {
+  background: rgba(var(--glass-bg-rgb), 0.94);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--separator);
 }
 
-/* Layer kilau (specular) */
-.glass::before {
-  content: ""; position: absolute; inset: 0; border-radius: inherit;
-  pointer-events: none; z-index: -1;
-  background: linear-gradient(135deg, rgb(var(--glass-rim-rgb) / calc(var(--glass-spec-alpha) * 0.5)), transparent 38%);
-}
-
-@media (prefers-reduced-transparency: reduce) {
-  .glass { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgb(var(--glass-tint-rgb) / 0.96); }
-  .glass::before { display: none; }
+.glass-accent {
+  background: var(--primary);
+  color: #ffffff;
 }
 
 body {
-  font-family: var(--font-sans);
+  font-family: var(--font-app);
   background-color: var(--bg);
   color: var(--label);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--primary);
+  color: #ffffff;
+}
+
+/* Focus styles */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--separator-strong);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--label-tertiary);
+}
+
+/* Hide scrollbar for touch swipeable tabs */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Print Rules for Official A4 Report */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 15mm 12mm 15mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 10.5pt;
+  }
+
+  .print\:hidden {
+    display: none !important;
+  }
+
+  .print\:border-black {
+    border-color: #000000 !important;
+  }
+
+  .print\:text-black {
+    color: #000000 !important;
+  }
+
+  .print\:bg-white {
+    background: #ffffff !important;
+  }
+
+  .print\:p-0 {
+    padding: 0 !important;
+  }
 }

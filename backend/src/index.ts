@@ -5,6 +5,8 @@ import authRoutes from './routes/authRoutes.js';
 import masterRoutes from './routes/masterRoutes.js';
 import nilaiRoutes from './routes/nilaiRoutes.js';
 import waliRoutes from './routes/waliRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
+import ortuRoutes from './routes/ortuRoutes.js';
 import { prisma } from './lib/prisma.js';
 import { isDatabaseUnavailableError, sendDatabaseUnavailable } from './lib/database.js';
 
@@ -30,6 +32,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/master', masterRoutes);
 app.use('/api/nilai', nilaiRoutes);
 app.use('/api/wali', waliRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/ortu', ortuRoutes);
 
 app.use((error: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (res.headersSent) return next(error);
@@ -55,10 +59,11 @@ app.get('/api/health/ready', async (_req, res) => {
 });
 
 app.get('/api/ping', async (req, res) => {
-    try{
+    try {
         const userCount = await prisma.user.count();
         res.json({
-            message: 'Anjay!',
+            status: 'ok',
+            message: 'Layanan API E-Rapor SMP Al-Hidayah aktif',
             totalUsers: userCount
         });
     } catch (error){

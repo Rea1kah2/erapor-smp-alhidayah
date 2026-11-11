@@ -41,7 +41,8 @@ export const upsertNilai = async (req: AuthRequest, res: Response) => {
         include: { guru: { select: { userId: true } } }
     });
     if (!assignment) return res.status(400).json({ error: 'Mata pelajaran belum ditugaskan ke kelas pada tahun ajaran tersebut.' });
-    if (role === 'GURU' && assignment.guru.userId !== userId) {
+    const isTeacher = role === 'GURU' || role === 'GURU_MAPEL' || role === 'GURU_WALI';
+    if (isTeacher && assignment.guru.userId !== userId) {
       return res.status(403).json({ error: 'Anda tidak ditugaskan mengajar mata pelajaran ini di kelas dan tahun ajaran tersebut.' });
     }
 
@@ -93,7 +94,8 @@ export const getNilaiByMapel = async (req: AuthRequest, res: Response) => {
     if (!subjectExists) return res.status(404).json({ error: 'Mata pelajaran tidak ditemukan.' });
 
     let allowedClassIds: string[] | undefined;
-    if (req.user?.role === 'GURU') {
+    const isTeacherRole = req.user?.role === 'GURU' || req.user?.role === 'GURU_MAPEL' || req.user?.role === 'GURU_WALI';
+    if (isTeacherRole && req.user) {
       const guru = await prisma.guru.findUnique({ where: { userId: req.user.id }, select: { id: true } });
       if (!guru) return res.status(403).json({ error: 'Profil guru tidak ditemukan.' });
       const assignments = await prisma.penugasanMapel.findMany({

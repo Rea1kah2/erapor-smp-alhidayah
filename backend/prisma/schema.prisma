@@ -9,11 +9,19 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  ADMIN
+  GURU_MAPEL
+  GURU_WALI
+  SISWA
+  ORTU
+}
+
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
   password  String
-  role      String // "ADMIN", "GURU", "SISWA", "ORTU"
+  role      Role     @default(SISWA)
   createdAt DateTime @default(now())
 
   // Relasi ke tabel profil
@@ -24,7 +32,7 @@ model User {
 
 model Guru {
   id     String  @id @default(uuid())
-  nip    String? @unique
+  nip    String  @unique
   nama   String
   userId String  @unique
   user   User    @relation(fields: [userId], references: [id])
@@ -57,6 +65,7 @@ model Siswa {
 model Ortu {
   id     String @id @default(uuid())
   nama   String
+  nik    String @unique
   userId String @unique
   user   User   @relation(fields: [userId], references: [id])
 
@@ -193,6 +202,10 @@ model CatatanRapor {
   // Catatan Perkembangan dari Wali Kelas
   catatanWali    String?
   statusKenaikan String? // Misal: "Naik ke Kelas VIII", "Lulus", dll.
+
+  // Catatan Perkembangan dari Orang Tua (Tiap Akhir Semester)
+  catatanOrtu    String?
+  catatanOrtuAt  DateTime?
 
   // Relasi
   siswaId String

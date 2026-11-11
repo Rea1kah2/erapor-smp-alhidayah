@@ -10,14 +10,52 @@ export const login = async (req: Request, res: Response) => {
     try{
         const {email, password} = req.body;
         if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password) {
-            return res.status(400).json({ error: 'Email dan kata sandi wajib diisi.' });
+            return res.status(400).json({ error: 'Email atau ID Pengguna (NISN/NIP/NIK) dan kata sandi wajib diisi.' });
         }
 
-        const user = await prisma.user.findUnique({where: {email: email.trim().toLowerCase()}});
-        if(!user) return res.status(401).json({error: 'Email atau kata sandi tidak cocok.'});
+        const identifier = email.trim();
+        let user = null;
+
+        if (identifier.includes('@')) {
+            user = await prisma.user.findUnique({ where: { email: identifier.toLowerCase() } });
+        } else {
+            // Cek apakah identifier adalah NISN siswa
+            const siswa = await prisma.siswa.findUnique({
+                where: { nisn: identifier },
+                include: { user: true }
+            });
+            if (siswa?.user) {
+                user = siswa.user;
+            } else {
+                // Cek apakah identifier adalah NIP guru
+                const guru = await prisma.guru.findUnique({
+                    where: { nip: identifier },
+                    include: { user: true }
+                });
+                if (guru?.user) {
+                    user = guru.user;
+                } else {
+                    // Cek apakah identifier adalah NIK orang tua
+                    const ortu = await prisma.ortu.findUnique({
+                        where: { nik: identifier },
+                        include: { user: true }
+                    });
+                    if (ortu?.user) {
+                        user = ortu.user;
+                    } else {
+                        // Cek email internal otomatis format <id>@alhidayah.sch.id
+                        user = await prisma.user.findUnique({
+                            where: { email: `${identifier.toLowerCase()}@alhidayah.sch.id` }
+                        });
+                    }
+                }
+            }
+        }
+
+        if(!user) return res.status(401).json({error: 'ID Pengguna / Email atau kata sandi tidak cocok.'});
 
         const isPasswordValid = await bcrypt.compare(password, user.password);
-        if(!isPasswordValid) return res.status(401).json({error: 'Email atau kata sandi tidak cocok.'});
+        if(!isPasswordValid) return res.status(401).json({error: 'ID Pengguna / Email atau kata sandi tidak cocok.'});
 
         const token = jwt.sign({id: user.id, role: user.role}, JWT_SECRET, {expiresIn: '1d'});
         const secure = COOKIE_SECURE ? '; Secure' : '';

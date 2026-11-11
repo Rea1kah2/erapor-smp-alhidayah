@@ -2,8 +2,8 @@
 'use client';
 import { apiFetch } from "@/lib/api";
 import { errorMessage } from '@/lib/errors';
-import { useState, useEffect, useCallback } from 'react';
-import { Plus, X, AlertCircle, Inbox, Pencil, Trash2, CheckCircle2, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Plus, X, AlertCircle, Inbox, Pencil, Trash2, CheckCircle2, RefreshCw, Users, Search } from 'lucide-react';
 
 interface Guru {
   id: string;
@@ -15,9 +15,11 @@ interface Guru {
 export default function DataGuru() {
   const [guruList, setGuruList] = useState<Guru[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Mode: null (tambah baru) atau ID guru (edit)
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -32,9 +34,7 @@ export default function DataGuru() {
 
   const fetchGuru = useCallback(async () => {
     try {
-      const res = await apiFetch('/api/master/guru', {
-        headers: {}
-      });
+      const res = await apiFetch('/api/master/guru');
       if (res.ok) {
         const data = await res.json();
         setGuruList(data);
@@ -47,7 +47,17 @@ export default function DataGuru() {
   }, []);
 
   useEffect(() => {
-    queueMicrotask(() => { void fetchGuru(); });
+    queueMicrotask(() => { 
+      void fetchGuru(); 
+      apiFetch('/api/auth/me')
+        .then(async (res) => {
+          if (res.ok) {
+            const data = await res.json();
+            setIsAdmin(data.user?.role === 'ADMIN');
+          }
+        })
+        .catch(() => {});
+    });
   }, [fetchGuru]);
 
   const openAddModal = () => {
@@ -63,7 +73,7 @@ export default function DataGuru() {
       nama: guru.nama,
       nip: guru.nip || '',
       email: guru.user.email,
-      password: '', // Kosongkan password saat edit, hanya diisi jika ingin diubah
+      password: '',
     });
     setErrorMsg('');
     setIsModalOpen(true);
@@ -83,14 +93,11 @@ export default function DataGuru() {
 
       const res = await apiFetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
 
       const data = await res.json();
-
       if (!res.ok) throw new Error(data.error || 'Gagal memproses data guru');
 
       setIsModalOpen(false);
@@ -113,7 +120,6 @@ export default function DataGuru() {
     try {
       const res = await apiFetch(`/api/master/guru/${deletingGuru.id}`, {
         method: 'DELETE',
-        headers: {}
       });
 
       const data = await res.json();
@@ -130,91 +136,136 @@ export default function DataGuru() {
     }
   };
 
-  return (
-    <div className="flex flex-col gap-6">
-      {/* Header Halaman */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-[28px] font-bold text-label leading-tight">Data Guru</h1>
-          <p className="text-[15px] text-label-secondary">Kelola master data tenaga pendidik</p>
-        </div>
-        <button 
-          onClick={openAddModal}
-          className="glass glass-accent h-11 px-5 rounded-full font-semibold text-white flex items-center justify-center gap-2 active:scale-95 transition-transform shrink-0 shadow-md"
-        >
-          <Plus size={20} strokeWidth={2} />
-          <span>Tambah Guru</span>
-        </button>
-      </header>
+  const filteredGuru = useMemo(() => {
+    if (!searchQuery.trim()) return guruList;
+    const q = searchQuery.toLowerCase();
+    return guruList.filter(g => 
+      g.nama.toLowerCase().includes(q) || 
+      (g.nip && g.nip.includes(q)) || 
+      g.user.email.toLowerCase().includes(q)
+    );
+  }, [guruList, searchQuery]);
 
-      {/* Notifikasi Toast / Banner */}
+  return (
+    <div className="flex flex-col gap-5">
+      
+      {/* Header Halaman */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-label flex items-center gap-2">
+            <Users className="text-primary" size={24} />
+            <span>Manajemen Tenaga Pendidik (Guru)</span>
+          </h1>
+          <p className="text-xs sm:text-sm text-label-secondary mt-0.5">
+            Kelola master data dewan guru dan akun penugasan akademik SMP Al-Hidayah
+          </p>
+        </div>
+        {isAdmin && (
+          <button 
+            onClick={openAddModal}
+            className="h-9 px-3.5 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-medium flex items-center gap-1.5 shadow-sm transition-colors self-start sm:self-auto cursor-pointer"
+          >
+            <Plus size={16} />
+            <span>Tambah Guru Baru</span>
+          </button>
+        )}
+      </div>
+
+      {/* Notifikasi */}
       {successMsg && (
-        <div className="p-3.5 rounded-2xl flex items-center gap-2.5 bg-[color-mix(in_srgb,var(--green)_15%,transparent)] text-label border border-[color-mix(in_srgb,var(--green)_30%,transparent)] shadow-sm">
-          <CheckCircle2 size={18} className="text-[var(--green)] shrink-0" />
-          <p className="text-sm font-medium">{successMsg}</p>
+        <div className="p-3 rounded-lg flex items-center gap-2.5 bg-primary-subtle border border-primary-border text-primary text-xs font-medium">
+          <CheckCircle2 size={16} className="shrink-0" />
+          <span>{successMsg}</span>
         </div>
       )}
 
       {errorMsg && !isModalOpen && !deletingGuru && (
-        <div className="p-3.5 rounded-2xl flex items-center gap-2.5 bg-[color-mix(in_srgb,var(--red)_15%,transparent)] text-label border border-[color-mix(in_srgb,var(--red)_30%,transparent)] shadow-sm">
-          <AlertCircle size={18} className="text-[var(--red)] shrink-0" />
-          <p className="text-sm font-medium">{errorMsg}</p>
+        <div className="p-3 rounded-lg flex items-center gap-2.5 bg-[var(--status-fail-bg)] border border-[var(--status-fail-border)] text-[var(--status-fail)] text-xs font-medium">
+          <AlertCircle size={16} className="shrink-0" />
+          <span>{errorMsg}</span>
         </div>
       )}
 
-      {/* Tabel Data (Solid, Non-Glass) */}
-      <section className="bg-bg-secondary rounded-[28px] shadow-[0_4px_16px_rgba(0,0,0,0.08)] overflow-hidden">
-        <div className="overflow-x-auto">
+      {/* Tabel Data Guru */}
+      <section className="bg-card rounded-xl border border-separator shadow-sm overflow-hidden flex flex-col">
+        <div className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-separator bg-bg/50">
+          <span className="text-xs font-semibold uppercase tracking-wider text-label-secondary">
+            Daftar Dewan Guru ({filteredGuru.length} Tenaga Pendidik)
+          </span>
+          <div className="relative w-full sm:w-64">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary" />
+            <input 
+              type="text"
+              placeholder="Cari guru atau NIP..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full h-8 pl-8 pr-3 rounded-lg bg-bg border border-separator text-label text-xs placeholder:text-label-tertiary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+            />
+          </div>
+        </div>
+
+        <div className="overflow-x-auto max-h-[65vh]">
           <table className="w-full text-left border-collapse min-w-[650px]">
-            <thead>
-              <tr className="border-b-[0.5px] border-separator bg-bg/40">
-                <th className="px-6 py-4 text-[13px] font-semibold text-label-secondary">NIP</th>
-                <th className="px-6 py-4 text-[13px] font-semibold text-label-secondary">NAMA LENGKAP</th>
-                <th className="px-6 py-4 text-[13px] font-semibold text-label-secondary">EMAIL (AKUN)</th>
-                <th className="px-6 py-4 text-[13px] font-semibold text-label-secondary text-right">AKSI</th>
+            <thead className="sticky top-0 z-20 bg-card border-b border-separator shadow-xs">
+              <tr className="text-xs font-semibold text-label-secondary uppercase tracking-wider">
+                <th className="px-4 py-3 w-40 font-mono">NIP</th>
+                <th className="px-4 py-3">Nama Lengkap & Gelar</th>
+                <th className="px-4 py-3">Email Akun Login</th>
+                {isAdmin && <th className="px-4 py-3 w-24 text-right">Aksi</th>}
               </tr>
             </thead>
-            <tbody className="text-[15px] text-label divide-y divide-separator/40">
+            <tbody className="text-sm divide-y divide-separator">
               {isLoading ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-label-secondary">
-                    Memuat data...
+                  <td colSpan={isAdmin ? 4 : 3} className="px-6 py-10 text-center text-label-secondary text-xs">
+                    <div className="flex items-center justify-center gap-2">
+                      <RefreshCw size={16} className="animate-spin text-primary" />
+                      <span>Memuat data guru...</span>
+                    </div>
                   </td>
                 </tr>
-              ) : guruList.length === 0 ? (
+              ) : filteredGuru.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center">
+                  <td colSpan={isAdmin ? 4 : 3} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center gap-2">
-                      <Inbox size={48} className="text-label-tertiary mb-2 strokeWidth={1}" />
-                      <p className="font-semibold text-[17px]">Belum ada data guru</p>
-                      <p className="text-[15px] text-label-secondary">Tambahkan guru pertama untuk memulai.</p>
+                      <Inbox size={36} className="text-label-tertiary" />
+                      <p className="font-semibold text-sm text-label">Belum ada data guru</p>
+                      <p className="text-xs text-label-secondary">Tambahkan data dewan guru pertama untuk penugasan kelas dan mapel.</p>
                     </div>
                   </td>
                 </tr>
               ) : (
-                guruList.map((guru) => (
-                  <tr key={guru.id} className="hover:bg-fill/50 transition-colors">
-                    <td className="px-6 py-4 font-medium tabular-nums">{guru.nip || '-'}</td>
-                    <td className="px-6 py-4 font-semibold">{guru.nama}</td>
-                    <td className="px-6 py-4 text-label-secondary">{guru.user.email}</td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={() => openEditModal(guru)}
-                          className="p-2 rounded-full hover:bg-fill text-label-secondary hover:text-accent transition-colors"
-                          title="Edit Guru"
-                        >
-                          <Pencil size={17} />
-                        </button>
-                        <button
-                          onClick={() => setDeletingGuru(guru)}
-                          className="p-2 rounded-full hover:bg-fill text-label-secondary hover:text-[var(--red)] transition-colors"
-                          title="Hapus Guru"
-                        >
-                          <Trash2 size={17} />
-                        </button>
-                      </div>
+                filteredGuru.map((guru) => (
+                  <tr key={guru.id} className="hover:bg-bg/60 transition-colors">
+                    <td className="px-4 py-2.5 font-mono text-xs text-label-secondary tabular-nums">
+                      {guru.nip || '-'}
                     </td>
+                    <td className="px-4 py-2.5 font-medium text-label text-sm">
+                      {guru.nama}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-label-secondary">
+                      {guru.user.email}
+                    </td>
+                    {isAdmin && (
+                      <td className="px-4 py-2.5 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => openEditModal(guru)}
+                            className="p-1.5 rounded-md hover:bg-card-subtle text-label-secondary hover:text-primary transition-colors cursor-pointer"
+                            title="Edit Guru"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            onClick={() => setDeletingGuru(guru)}
+                            className="p-1.5 rounded-md hover:bg-[var(--status-fail-bg)] text-label-secondary hover:text-[var(--status-fail)] transition-colors cursor-pointer"
+                            title="Hapus Guru"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -223,91 +274,90 @@ export default function DataGuru() {
         </div>
       </section>
 
-      {/* Modal Tambah / Edit Guru (Glass Thick) */}
+      {/* Modal Tambah / Edit Guru */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-150">
-          <div 
-            className="glass glass-thick w-full max-w-lg p-6 relative flex flex-col gap-6" 
-            style={{ '--glass-radius': 'var(--radius-2xl)' } as React.CSSProperties}
-          >
-            <button 
-              onClick={() => setIsModalOpen(false)}
-              className="absolute top-4 right-4 p-2 rounded-full hover:bg-fill transition-colors text-label-secondary"
-            >
-              <X size={22} />
-            </button>
-
-            <div>
-              <h2 className="text-[22px] font-semibold text-label">
-                {editingId ? 'Edit Data Guru' : 'Tambah Guru Baru'}
-              </h2>
-              <p className="text-[15px] text-label-secondary">
-                {editingId 
-                  ? 'Perbarui informasi profil dan akun guru.' 
-                  : 'Sistem akan otomatis membuatkan akun login.'}
-              </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-card w-full max-w-md p-6 rounded-2xl border border-separator shadow-xl relative flex flex-col gap-4">
+            <div className="flex items-center justify-between pb-2 border-b border-separator">
+              <div>
+                <h2 className="text-base font-bold text-label">
+                  {editingId ? 'Edit Data Guru' : 'Tambah Guru Baru'}
+                </h2>
+                <p className="text-xs text-label-secondary">
+                  {editingId ? 'Perbarui informasi guru & akun' : 'Sistem otomatis membuatkan akun login guru'}
+                </p>
+              </div>
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-fill text-label-secondary transition-colors"
+              >
+                <X size={18} />
+              </button>
             </div>
 
             {errorMsg && (
-              <div className="p-3 rounded-lg flex items-start gap-2 bg-[color-mix(in_srgb,var(--red)_12%,transparent)] text-label shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--red)_35%,transparent)]">
-                <AlertCircle size={18} className="text-[var(--red)] mt-0.5 shrink-0" />
-                 <p className="text-sm font-medium">{errorMsg}</p>
+              <div className="p-3 rounded-lg flex items-start gap-2 bg-[var(--status-fail-bg)] border border-[var(--status-fail-border)] text-[var(--status-fail)] text-xs font-medium">
+                <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                <span>{errorMsg}</span>
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
-                <label className="text-[15px] font-medium text-label">Nama Lengkap</label>
+            <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-label">Nama Lengkap & Gelar</label>
                 <input 
                   type="text" required
                   value={formData.nama} onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
-                  placeholder="Contoh: Budi Santoso, S.Pd"
-                  className="h-11 px-4 rounded-[12px] bg-fill text-label focus:outline-none focus:ring-2 focus:ring-accent transition-shadow"
+                  placeholder="Contoh: Dra. Hj. Siti Rahmah, M.Pd"
+                  className="h-9 px-3 rounded-lg bg-bg border border-separator text-label text-xs focus:outline-none focus:border-primary"
                 />
               </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-[15px] font-medium text-label">NIP (Opsional)</label>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-label">NIP (Nomor Induk Pegawai)</label>
                 <input 
                   type="text" 
                   value={formData.nip} onChange={(e) => setFormData({ ...formData, nip: e.target.value })}
-                  placeholder="19850101..."
-                  className="h-11 px-4 rounded-[12px] bg-fill text-label focus:outline-none focus:ring-2 focus:ring-accent transition-shadow"
+                  placeholder="198503212009022001 (Opsional)"
+                  className="h-9 px-3 rounded-lg bg-bg border border-separator text-label text-xs font-mono focus:outline-none focus:border-primary"
                 />
               </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-[15px] font-medium text-label">Email Akun</label>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-label">Email Akun Login</label>
                 <input 
                   type="email" required
                   value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="guru@sekolah.com"
-                  className="h-11 px-4 rounded-[12px] bg-fill text-label focus:outline-none focus:ring-2 focus:ring-accent transition-shadow"
+                  placeholder="guru@alhidayah.sch.id"
+                  className="h-9 px-3 rounded-lg bg-bg border border-separator text-label text-xs focus:outline-none focus:border-primary"
                 />
               </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-[15px] font-medium text-label">
-                  Kata Sandi {editingId ? '(Kosongkan jika tidak diubah)' : '(Minimal 12 karakter)'}
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-label">
+                  Kata Sandi {editingId ? '(Biarkan kosong jika tidak diubah)' : '(Minimal 12 karakter)'}
                 </label>
                 <input 
                   type="password" 
                   minLength={12}
                   required={!editingId}
                   value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder={editingId ? 'Biarkan kosong untuk mempertahankan sandi lama' : 'Buat kata sandi sementara yang kuat'}
-                  className="h-11 px-4 rounded-[12px] bg-fill text-label focus:outline-none focus:ring-2 focus:ring-accent transition-shadow"
+                  placeholder={editingId ? '••••••••••••' : 'Buat kata sandi akun'}
+                  className="h-9 px-3 rounded-lg bg-bg border border-separator text-label text-xs focus:outline-none focus:border-primary"
                 />
               </div>
               
-              <div className="flex justify-end gap-2 mt-4">
+              <div className="flex justify-end gap-2 pt-3 border-t border-separator">
                 <button 
                   type="button" 
                   onClick={() => setIsModalOpen(false)}
-                  className="h-11 px-5 rounded-full font-semibold text-label hover:bg-fill transition-colors"
+                  className="h-9 px-4 rounded-lg text-xs font-semibold text-label-secondary hover:bg-fill transition-colors"
                 >
                   Batal
                 </button>
                 <button 
                   type="submit" disabled={isSubmitting}
-                  className="glass glass-accent h-11 px-6 rounded-full font-semibold text-white active:scale-95 transition-transform disabled:opacity-50"
+                  className="h-9 px-4 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-medium transition-colors disabled:opacity-50"
                 >
                   {isSubmitting ? 'Menyimpan...' : editingId ? 'Simpan Perubahan' : 'Tambah Guru'}
                 </button>
@@ -319,54 +369,39 @@ export default function DataGuru() {
 
       {/* Modal Konfirmasi Hapus */}
       {deletingGuru && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-150">
-          <div 
-            className="glass glass-thick w-full max-w-md p-6 relative flex flex-col gap-4" 
-            style={{ '--glass-radius': 'var(--radius-2xl)' } as React.CSSProperties}
-          >
-            <div className="flex items-center gap-3 text-[var(--red)]">
-              <div className="p-3 rounded-full bg-[color-mix(in_srgb,var(--red)_15%,transparent)]">
-                <Trash2 size={24} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-card w-full max-w-sm p-5 rounded-2xl border border-separator shadow-xl relative flex flex-col gap-3.5">
+            <div className="flex items-center gap-2.5 text-[var(--status-fail)]">
+              <div className="p-2 rounded-lg bg-[var(--status-fail-bg)]">
+                <Trash2 size={20} />
               </div>
-              <h3 className="text-xl font-bold text-label">Hapus Guru?</h3>
+              <h3 className="text-base font-bold text-label">Hapus Data Guru?</h3>
             </div>
 
-            <p className="text-sm text-label-secondary">
+            <p className="text-xs text-label-secondary leading-relaxed">
               Apakah Anda yakin ingin menghapus data <strong>{deletingGuru.nama}</strong>? Akun login terkait dan penugasan mengajar akan otomatis dibatalkan.
             </p>
 
-            {errorMsg && (
-              <div className="p-3 rounded-lg text-sm bg-[color-mix(in_srgb,var(--red)_12%,transparent)] text-label">
-                {errorMsg}
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2 mt-2">
+            <div className="flex justify-end gap-2 pt-2 border-t border-separator">
               <button
                 onClick={() => setDeletingGuru(null)}
                 disabled={isDeleting}
-                className="h-10 px-5 rounded-full font-semibold text-label hover:bg-fill transition-colors"
+                className="h-8 px-3 rounded-lg text-xs font-semibold text-label-secondary hover:bg-fill transition-colors"
               >
                 Batal
               </button>
               <button
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className="h-10 px-5 rounded-full font-semibold text-white bg-[var(--red)] hover:opacity-90 active:scale-95 transition-all flex items-center gap-2"
+                className="h-8 px-3 rounded-lg bg-[var(--status-fail)] hover:opacity-90 text-white text-xs font-medium transition-opacity flex items-center gap-1.5"
               >
-                {isDeleting ? (
-                  <>
-                    <RefreshCw size={16} className="animate-spin" />
-                    <span>Menghapus...</span>
-                  </>
-                ) : (
-                  'Ya, Hapus'
-                )}
+                {isDeleting ? 'Menghapus...' : 'Ya, Hapus'}
               </button>
             </div>
           </div>
         </div>
       )}
+
     </div>
   );
 }

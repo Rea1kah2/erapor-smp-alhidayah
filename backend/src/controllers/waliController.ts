@@ -33,7 +33,7 @@ export const getKelasBinaan = async (req: AuthRequest, res: Response) => {
       })) });
     }
 
-    if (role === 'GURU') {
+    if (role === 'GURU' || role === 'GURU_WALI') {
       const guru = await prisma.guru.findUnique({ where: { userId } });
 
       if (!guru) return res.status(404).json({ error: 'Data guru tidak ditemukan' });
@@ -87,7 +87,7 @@ export const getRekapKelas = async (req: AuthRequest, res: Response) => {
     if (!year) return res.status(404).json({ error: 'Tahun ajaran belum terdaftar.' });
 
     // Validasi wewenang wali kelas jika role GURU
-    if (role === 'GURU') {
+    if (role === 'GURU' || role === 'GURU_WALI') {
       const guru = await prisma.guru.findUnique({ where: { userId } });
       const assignments = guru ? await prisma.penugasanWali.findMany({ where: { guruId: guru.id, tahunAjaranId: year.id } }) : [];
       if (!guru || assignments.length === 0) {
@@ -262,7 +262,7 @@ export const saveCatatanRapor = async (req: AuthRequest, res: Response) => {
     });
     if (!enrollment) return res.status(404).json({ error: 'Siswa tidak memiliki riwayat kelas pada tahun ajaran tersebut.' });
 
-    if (req.user?.role === 'GURU') {
+    if (req.user?.role === 'GURU' || req.user?.role === 'GURU_WALI') {
       const guru = await prisma.guru.findUnique({ where: { userId: req.user.id }, select: { id: true } });
       const assigned = guru && await prisma.penugasanWali.findUnique({
         where: { kelasId_tahunAjaranId: { kelasId: enrollment.kelasId, tahunAjaranId: year.id } },
@@ -348,7 +348,7 @@ export const getLembarRaporSiswa = async (req: AuthRequest, res: Response) => {
       if (!isAnakSendiri) {
         return res.status(403).json({ error: 'Akses ditolak: Anda hanya berhak mengakses lembar rapor anak Anda sendiri.' });
       }
-    } else if (role === 'GURU') {
+    } else if (role === 'GURU' || role === 'GURU_WALI') {
       const guru = await prisma.guru.findUnique({ where: { userId }, select: { id: true } });
       const enrollment = await prisma.riwayatKelas.findUnique({ where: { siswaId_tahunAjaranId: { siswaId, tahunAjaranId: year.id } } });
       const assignment = enrollment && await prisma.penugasanWali.findUnique({
@@ -357,6 +357,16 @@ export const getLembarRaporSiswa = async (req: AuthRequest, res: Response) => {
       });
       if (!guru || !assignment || assignment.guruId !== guru.id) {
         return res.status(403).json({ error: 'Akses ditolak: Siswa ini bukan merupakan anggota kelas binaan Anda.' });
+      }
+    } else if (role === 'GURU_MAPEL') {
+      const guru = await prisma.guru.findUnique({ where: { userId }, select: { id: true } });
+      const enrollment = await prisma.riwayatKelas.findUnique({ where: { siswaId_tahunAjaranId: { siswaId, tahunAjaranId: year.id } } });
+      const teachesStudent = enrollment && guru && await prisma.penugasanMapel.findFirst({
+        where: { kelasId: enrollment.kelasId, tahunAjaranId: year.id, guruId: guru.id },
+        select: { id: true }
+      });
+      if (!teachesStudent) {
+        return res.status(403).json({ error: 'Akses ditolak: Anda tidak mengajar di kelas siswa ini.' });
       }
     }
 
@@ -438,6 +448,8 @@ export const getLembarRaporSiswa = async (req: AuthRequest, res: Response) => {
         deskripsiSosial: null,
         ekskul: [],
         catatanWali: '',
+        catatanOrtu: null,
+        catatanOrtuAt: null,
         statusKenaikan: null
       })
     };

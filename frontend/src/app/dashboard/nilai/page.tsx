@@ -1,3 +1,4 @@
+// frontend/src/app/dashboard/nilai/page.tsx
 'use client';
 import { apiFetch } from "@/lib/api";
 import { errorMessage } from '@/lib/errors';
@@ -16,7 +17,8 @@ import {
   TrendingUp,
   RefreshCw,
   Plus,
-  X
+  X,
+  Keyboard
 } from 'lucide-react';
 
 interface Kelas {
@@ -59,7 +61,7 @@ export default function NilaiPage() {
   const [mapelList, setMapelList] = useState<Mapel[]>([]);
   const [manualMapelList, setManualMapelList] = useState<Mapel[]>([]);
   const [siswaList, setSiswaList] = useState<Siswa[]>([]);
-  const [allSiswaList, setAllSiswaList] = useState<Siswa[]>([]); // Untuk dropdown modal manual
+  const [allSiswaList, setAllSiswaList] = useState<Siswa[]>([]);
 
   // Filter selections
   const [selectedKelasId, setSelectedKelasId] = useState<string>('');
@@ -70,6 +72,7 @@ export default function NilaiPage() {
 
   // Nilai data states
   const [scores, setScores] = useState<Record<string, Record<string, string>>>({});
+  const [initialScores, setInitialScores] = useState<Record<string, Record<string, string>>>({});
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Status states
@@ -166,8 +169,6 @@ export default function NilaiPage() {
     loadAcademicYear().catch(() => setErrorMsg('Gagal memuat data akademik untuk tahun ajaran tersebut.'));
   }, [tahunAjaran]);
 
-  // A teacher can teach different subjects in different classes. Load the
-  // subject list for the selected class so the form cannot offer invalid pairs.
   useEffect(() => {
     if (!tahunAjaran || !selectedKelasId) return;
     let cancelled = false;
@@ -255,6 +256,8 @@ export default function NilaiPage() {
         });
 
         setScores(mappedScores);
+        // Salin untuk deteksi perubahan (dirty tracking)
+        setInitialScores(JSON.parse(JSON.stringify(mappedScores)));
       }
     } catch (err) {
       console.error('Gagal mengambil data siswa & nilai', err);
@@ -268,17 +271,15 @@ export default function NilaiPage() {
     queueMicrotask(() => { void fetchFilterData(); });
   }, [fetchFilterData]);
 
-  // Active selected mapel info
   const selectedMapel = useMemo(() => {
     return mapelList.find((m) => m.id === selectedMapelId);
   }, [mapelList, selectedMapelId]);
 
-  // Active selected kelas info
   const selectedKelas = useMemo(() => {
     return kelasList.find((k) => k.id === selectedKelasId);
   }, [kelasList, selectedKelasId]);
 
-  // Handle score change in input
+  // Handle score change
   const handleScoreChange = (siswaId: string, jenis: JenisNilaiType, value: string) => {
     if (value !== '' && (isNaN(Number(value)) || Number(value) < 0 || Number(value) > 100)) {
       return;
@@ -293,8 +294,34 @@ export default function NilaiPage() {
     }));
   };
 
-  // Upsert a single student's score
-  const saveStudentScores = async (siswaId: string) => {
+  // Check if a row has unsaved modifications
+  const isRowDirty = useCallback((siswaId: string) => {
+    const current = scores[siswaId];
+    const initial = initialScores[siswaId];
+    if (!current || !initial) return false;
+    return (
+      (current.TUGAS || '') !== (initial.TUGAS || '') ||
+      (current.UTS || '') !== (initial.UTS || '') ||
+      (current.UAS || '') !== (initial.UAS || '')
+    );
+  }, [scores, initialScores]);
+
+  // Filtered student list by search input
+  const filteredSiswa = useMemo(() => {
+    if (!searchQuery.trim()) return siswaList;
+    const query = searchQuery.toLowerCase();
+    return siswaList.filter((student) => 
+      student.nama.toLowerCase().includes(query) || student.nisn.toLowerCase().includes(query)
+    );
+  }, [searchQuery, siswaList]);
+
+  // Hitung berapa siswa yang nilainya diubah tapi belum disimpan
+  const dirtyCount = useMemo(() => {
+    return filteredSiswa.filter((s) => isRowDirty(s.id)).length;
+  }, [filteredSiswa, isRowDirty]);
+
+  // Save single student's scores
+  const saveStudentScores = useCallback(async (siswaId: string) => {
     const studentScores = scores[siswaId];
     if (!studentScores) return;
 
@@ -303,9 +330,7 @@ export default function NilaiPage() {
     setSuccessMsg('');
 
     try {
-      const headers = {
-        'Content-Type': 'application/json',
-      };
+      const headers = { 'Content-Type': 'application/json' };
 
       const promises = JENIS_NILAI.map(async (jenis) => {
         const val = studentScores[jenis];
@@ -330,6 +355,13 @@ export default function NilaiPage() {
       });
 
       await Promise.all(promises);
+      
+      // Update snapshot initial
+      setInitialScores((prev) => ({
+        ...prev,
+        [siswaId]: { ...studentScores }
+      }));
+
       setSuccessMsg('Nilai siswa berhasil disimpan!');
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err: unknown) {
@@ -337,19 +369,16 @@ export default function NilaiPage() {
     } finally {
       setSavingSiswaId(null);
     }
-  };
+  }, [scores, selectedMapelId, semester, tahunAjaran]);
 
   // Save all students' scores
-  const saveAllScores = async () => {
+  const saveAllScores = useCallback(async () => {
     setSavingAll(true);
     setErrorMsg('');
     setSuccessMsg('');
 
     try {
-      const headers = {
-        'Content-Type': 'application/json',
-      };
-
+      const headers = { 'Content-Type': 'application/json' };
       const promises: Promise<void>[] = [];
 
       filteredSiswa.forEach((siswa) => {
@@ -389,6 +418,10 @@ export default function NilaiPage() {
       }
 
       await Promise.all(promises);
+
+      // Sinkronkan seluruh snapshot awal
+      setInitialScores(JSON.parse(JSON.stringify(scores)));
+
       setSuccessMsg(`Semua nilai untuk kelas ${selectedKelas?.nama || ''} berhasil disimpan!`);
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err: unknown) {
@@ -396,7 +429,52 @@ export default function NilaiPage() {
     } finally {
       setSavingAll(false);
     }
+  }, [filteredSiswa, scores, selectedKelas, selectedMapelId, semester, tahunAjaran]);
+
+  // Keyboard Navigation: Enter or ArrowDown jumps to next student in same column, ArrowUp jumps to previous
+  const handleInputKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    rowIndex: number,
+    jenis: JenisNilaiType
+  ) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      saveAllScores();
+      return;
+    }
+
+    if (e.key === 'Enter' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nextInput = document.querySelector<HTMLInputElement>(
+        `input[data-row-idx="${rowIndex + 1}"][data-col-type="${jenis}"]`
+      );
+      if (nextInput) {
+        nextInput.focus();
+        nextInput.select();
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prevInput = document.querySelector<HTMLInputElement>(
+        `input[data-row-idx="${rowIndex - 1}"][data-col-type="${jenis}"]`
+      );
+      if (prevInput) {
+        prevInput.focus();
+        prevInput.select();
+      }
+    }
   };
+
+  // Global Ctrl+S / Cmd+S Listener
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        saveAllScores();
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [saveAllScores]);
 
   // Handle Submit Modal Tambah Nilai Manual
   const handleManualSubmit = async (e: React.FormEvent) => {
@@ -411,10 +489,7 @@ export default function NilaiPage() {
     setSuccessMsg('');
 
     try {
-      const headers = {
-        'Content-Type': 'application/json',
-      };
-
+      const headers = { 'Content-Type': 'application/json' };
       const entries = [
         { jenis: 'TUGAS', skor: manualForm.tugas },
         { jenis: 'UTS', skor: manualForm.uts },
@@ -444,10 +519,9 @@ export default function NilaiPage() {
       }
 
       setIsManualModalOpen(false);
-      setSuccessMsg('Data nilai manual berhasil disimpan ke database!');
+      setSuccessMsg('Data nilai manual berhasil disimpan!');
       setTimeout(() => setSuccessMsg(''), 3000);
 
-      // Refresh filter data jika cocok
       if (manualForm.mapelId === selectedMapelId && manualForm.semester === semester && manualForm.tahunAjaran === tahunAjaran) {
         fetchFilterData();
       }
@@ -472,31 +546,31 @@ export default function NilaiPage() {
     setIsManualModalOpen(true);
   };
 
-  // Filtered student list by search input
-  const filteredSiswa = searchQuery.trim()
-    ? siswaList.filter((student) => {
-        const query = searchQuery.toLowerCase();
-        return student.nama.toLowerCase().includes(query) || student.nisn.toLowerCase().includes(query);
-      })
-    : siswaList;
-
-  // Match the backend weighting and renormalize for components not entered yet.
+  // Perhitungan Nilai Akhir sesuai formula: Tugas 40%, UTS 30%, UAS 30%
   const calculateFinal = useCallback((studentScores?: Record<string, string>) => {
-    if (!studentScores) return { avg: null, passed: false };
+    if (!studentScores) return { avg: null, passed: false, predikat: '-' };
     const components = [
       { value: studentScores.TUGAS, weight: 0.4 },
       { value: studentScores.UTS, weight: 0.3 },
       { value: studentScores.UAS, weight: 0.3 }
     ].filter((component) => component.value !== undefined && component.value !== '');
-    if (components.length === 0) return { avg: null, passed: false };
+    if (components.length === 0) return { avg: null, passed: false, predikat: '-' };
+    
     const totalWeight = components.reduce((sum, component) => sum + component.weight, 0);
     const weightedScore = components.reduce((sum, component) => sum + Number(component.value) * component.weight, 0);
     const finalScore = Math.round((weightedScore / totalWeight) * 10) / 10;
     const kkm = selectedMapel?.kkm ?? 75;
 
+    let predikat = 'D';
+    if (finalScore >= 90) predikat = 'A';
+    else if (finalScore >= 80) predikat = 'B';
+    else if (finalScore >= kkm) predikat = 'C';
+    else predikat = 'D';
+
     return {
       avg: finalScore,
       passed: finalScore >= kkm,
+      predikat
     };
   }, [selectedMapel?.kkm]);
 
@@ -529,91 +603,99 @@ export default function NilaiPage() {
   }, [filteredSiswa, scores, selectedMapel, calculateFinal]);
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Page Header */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="flex flex-col gap-5">
+      
+      {/* Page Title & Action Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-[28px] font-bold text-label leading-tight flex items-center gap-2.5">
-            <FileSpreadsheet className="text-accent" size={28} />
-            Input & Rekap Nilai Siswa
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-label flex items-center gap-2">
+            <FileSpreadsheet className="text-primary" size={24} />
+            <span>Matriks Penilaian Mata Pelajaran</span>
           </h1>
-          <p className="text-[15px] text-label-secondary">
-            Kelola nilai harian (Tugas), UTS, dan UAS per mata pelajaran dan semester
+          <p className="text-xs sm:text-sm text-label-secondary mt-0.5">
+            Formula Resmi: Tugas/Harian (40%) &bull; UTS (30%) &bull; UAS (30%) &bull; KKM {selectedMapel?.kkm || 75}
           </p>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0">
           <button
             onClick={openManualModal}
-            className="glass h-11 px-5 rounded-full font-semibold text-accent hover:bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm"
+            className="h-9 px-3.5 rounded-lg border border-separator hover:bg-card-subtle text-xs font-semibold text-label flex items-center gap-1.5 transition-colors"
           >
-            <Plus size={18} strokeWidth={2.5} />
-            <span>Input Nilai Manual</span>
+            <Plus size={16} />
+            <span>Input Tunggal</span>
           </button>
 
           {filteredSiswa.length > 0 && (
             <button
               onClick={saveAllScores}
               disabled={savingAll || isLoadingNilai}
-              className="glass glass-accent h-11 px-6 rounded-full font-semibold text-white flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50 shadow-md"
+              className="h-9 px-4 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-medium flex items-center gap-2 shadow-sm transition-all disabled:opacity-50 cursor-pointer"
             >
               {savingAll ? (
                 <>
-                  <RefreshCw size={18} className="animate-spin" />
+                  <RefreshCw size={14} className="animate-spin" />
                   <span>Menyimpan...</span>
                 </>
               ) : (
                 <>
-                  <Save size={18} strokeWidth={2} />
-                  <span>Simpan Semua Nilai</span>
+                  <Save size={14} />
+                  <span>Simpan Semua</span>
+                  {dirtyCount > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-[var(--status-dirty)] text-white text-[10px] font-bold font-mono">
+                      {dirtyCount}
+                    </span>
+                  )}
                 </>
               )}
             </button>
           )}
         </div>
-      </header>
+      </div>
 
       {/* Notifications */}
       {successMsg && (
-        <div className="p-3.5 rounded-2xl flex items-center gap-2.5 bg-[color-mix(in_srgb,var(--green)_15%,transparent)] text-label border border-[color-mix(in_srgb,var(--green)_30%,transparent)] shadow-sm animate-in fade-in duration-200">
-          <CheckCircle2 size={18} className="text-[var(--green)] shrink-0" />
-          <p className="text-sm font-medium">{successMsg}</p>
+        <div className="p-3 rounded-lg flex items-center gap-2.5 bg-primary-subtle border border-primary-border text-primary text-xs font-medium">
+          <CheckCircle2 size={16} className="shrink-0" />
+          <span>{successMsg}</span>
         </div>
       )}
 
       {errorMsg && !isManualModalOpen && (
-        <div className="p-3.5 rounded-2xl flex items-center gap-2.5 bg-[color-mix(in_srgb,var(--red)_15%,transparent)] text-label border border-[color-mix(in_srgb,var(--red)_30%,transparent)] shadow-sm animate-in fade-in duration-200">
-          <AlertCircle size={18} className="text-[var(--red)] shrink-0" />
-          <p className="text-sm font-medium">{errorMsg}</p>
+        <div className="p-3 rounded-lg flex items-center gap-2.5 bg-[var(--status-fail-bg)] border border-[var(--status-fail-border)] text-[var(--status-fail)] text-xs font-medium">
+          <AlertCircle size={16} className="shrink-0" />
+          <span>{errorMsg}</span>
         </div>
       )}
 
-      {/* Filter Card (Liquid Glass) */}
-      <section
-        className="glass glass-thick p-5 flex flex-col gap-4"
-        style={{ '--glass-radius': 'var(--radius-xl)' } as React.CSSProperties}
-      >
-        <div className="flex items-center gap-2 text-label font-semibold text-[15px]">
-          <Filter size={18} className="text-accent" />
-          <span>Filter Data Penilaian</span>
+      {/* Filter Section (Solid Crisp Card) */}
+      <section className="bg-card rounded-xl border border-separator p-4 shadow-sm flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs font-bold text-label-secondary uppercase tracking-wider">
+            <Filter size={14} className="text-primary" />
+            <span>Filter Kelas & Mata Pelajaran</span>
+          </div>
+          <div className="hidden lg:flex items-center gap-1.5 text-[11px] text-label-tertiary">
+            <Keyboard size={13} />
+            <span>Navigasi: Enter / Panah Bawah untuk turun baris &bull; Simpan: Ctrl+S</span>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Kelas Selector */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[13px] font-medium text-label-secondary">Kelas</label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Kelas */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-label">Kelas</label>
             <select
               value={selectedKelasId}
               onChange={(e) => setSelectedKelasId(e.target.value)}
               disabled={isLoadingMaster || kelasList.length === 0}
-              className="h-11 px-3.5 rounded-[12px] bg-fill text-label font-medium focus:outline-none focus:ring-2 focus:ring-accent transition-all cursor-pointer disabled:opacity-50"
+              className="h-9 px-3 rounded-lg bg-bg border border-separator text-label text-xs font-medium focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all cursor-pointer"
             >
               {kelasList.length === 0 ? (
                 <option value="">Belum ada kelas</option>
               ) : (
                 kelasList.map((k) => (
-                  <option key={k.id} value={k.id} className="bg-bg text-label">
+                  <option key={k.id} value={k.id}>
                     {k.nama} (Tingkat {k.tingkat})
                   </option>
                 ))
@@ -621,20 +703,20 @@ export default function NilaiPage() {
             </select>
           </div>
 
-          {/* Mapel Selector */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[13px] font-medium text-label-secondary">Mata Pelajaran</label>
+          {/* Mapel */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-label">Mata Pelajaran</label>
             <select
               value={selectedMapelId}
               onChange={(e) => setSelectedMapelId(e.target.value)}
               disabled={isLoadingMaster || mapelList.length === 0}
-              className="h-11 px-3.5 rounded-[12px] bg-fill text-label font-medium focus:outline-none focus:ring-2 focus:ring-accent transition-all cursor-pointer disabled:opacity-50"
+              className="h-9 px-3 rounded-lg bg-bg border border-separator text-label text-xs font-medium focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all cursor-pointer"
             >
               {mapelList.length === 0 ? (
-                <option value="">Belum ada mapel</option>
+                <option value="">Belum ada mata pelajaran</option>
               ) : (
                 mapelList.map((m) => (
-                  <option key={m.id} value={m.id} className="bg-bg text-label">
+                  <option key={m.id} value={m.id}>
                     {m.nama} (KKM: {m.kkm})
                   </option>
                 ))
@@ -642,176 +724,149 @@ export default function NilaiPage() {
             </select>
           </div>
 
-          {/* Semester Selector */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[13px] font-medium text-label-secondary">Semester</label>
+          {/* Semester */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-label">Semester</label>
             <select
               value={semester}
               onChange={(e) => setSemester(e.target.value)}
-              className="h-11 px-3.5 rounded-[12px] bg-fill text-label font-medium focus:outline-none focus:ring-2 focus:ring-accent transition-all cursor-pointer"
+              className="h-9 px-3 rounded-lg bg-bg border border-separator text-label text-xs font-medium focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all cursor-pointer"
             >
-              <option value="GANJIL" className="bg-bg text-label">Semester Ganjil</option>
-              <option value="GENAP" className="bg-bg text-label">Semester Genap</option>
+              <option value="GANJIL">Semester Ganjil</option>
+              <option value="GENAP">Semester Genap</option>
             </select>
           </div>
 
           {/* Tahun Ajaran */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[13px] font-medium text-label-secondary">Tahun Ajaran</label>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-label">Tahun Ajaran</label>
             <select
               value={tahunAjaran}
               onChange={(e) => setTahunAjaran(e.target.value)}
-              className="h-11 px-3.5 rounded-[12px] bg-fill text-label font-medium focus:outline-none focus:ring-2 focus:ring-accent transition-all cursor-pointer"
+              className="h-9 px-3 rounded-lg bg-bg border border-separator text-label text-xs font-medium focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all cursor-pointer"
             >
-              {yearOptions.map((year) => <option key={year} value={year} className="bg-bg text-label">{year}</option>)}
+              {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
             </select>
           </div>
         </div>
       </section>
 
-      {/* KPI Cards Ringkasan Nilai */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div
-          className="glass p-4 flex flex-col gap-1.5"
-          style={{ '--glass-radius': 'var(--radius-lg)' } as React.CSSProperties}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[12px] font-medium text-label-secondary uppercase">KKM Mapel</span>
-            <Award size={16} className="text-accent" />
+      {/* Metrics Row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-card border border-separator rounded-xl p-3.5 flex flex-col gap-1 shadow-sm">
+          <div className="flex items-center justify-between text-label-secondary">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Standar KKM</span>
+            <Award size={14} className="text-accent" />
           </div>
           <span className="text-2xl font-bold tabular-nums text-label">
             {selectedMapel ? selectedMapel.kkm : '-'}
           </span>
           <span className="text-[11px] text-label-secondary truncate">
-            {selectedMapel?.nama || 'Mapel belum dipilih'}
+            {selectedMapel?.nama || '-'}
           </span>
         </div>
 
-        <div
-          className="glass p-4 flex flex-col gap-1.5"
-          style={{ '--glass-radius': 'var(--radius-lg)' } as React.CSSProperties}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[12px] font-medium text-label-secondary uppercase">Siswa Terdata</span>
-            <Layers size={16} className="text-[var(--green)]" />
+        <div className="bg-card border border-separator rounded-xl p-3.5 flex flex-col gap-1 shadow-sm">
+          <div className="flex items-center justify-between text-label-secondary">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Kelengkapan Nilai</span>
+            <Layers size={14} className="text-primary" />
           </div>
           <span className="text-2xl font-bold tabular-nums text-label">
-            {statsSummary.dinilai} / {statsSummary.totalSiswa}
+            {statsSummary.dinilai} <span className="text-sm font-normal text-label-secondary">/ {statsSummary.totalSiswa}</span>
           </span>
           <span className="text-[11px] text-label-secondary">
             {statsSummary.totalSiswa > 0
-              ? `${Math.round((statsSummary.dinilai / statsSummary.totalSiswa) * 100)}% telah dinilai`
-              : 'Tidak ada siswa'}
+              ? `${Math.round((statsSummary.dinilai / statsSummary.totalSiswa) * 100)}% siswa ternilai`
+              : 'Belum ada siswa'}
           </span>
         </div>
 
-        <div
-          className="glass p-4 flex flex-col gap-1.5"
-          style={{ '--glass-radius': 'var(--radius-lg)' } as React.CSSProperties}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[12px] font-medium text-label-secondary uppercase">Rata-rata Kelas</span>
-            <TrendingUp size={16} className="text-[#ff9500]" />
+        <div className="bg-card border border-separator rounded-xl p-3.5 flex flex-col gap-1 shadow-sm">
+          <div className="flex items-center justify-between text-label-secondary">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Rata-Rata Kelas</span>
+            <TrendingUp size={14} className="text-accent" />
           </div>
           <span className="text-2xl font-bold tabular-nums text-label">
             {statsSummary.avgKelas}
           </span>
-          <span className="text-[11px] text-label-secondary">
-            Skala 0 - 100
-          </span>
+          <span className="text-[11px] text-label-secondary">Skala 0 - 100</span>
         </div>
 
-        <div
-          className="glass p-4 flex flex-col gap-1.5"
-          style={{ '--glass-radius': 'var(--radius-lg)' } as React.CSSProperties}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[12px] font-medium text-label-secondary uppercase">Ketuntasan</span>
-            <BookOpen size={16} className="text-[#af52de]" />
+        <div className="bg-card border border-separator rounded-xl p-3.5 flex flex-col gap-1 shadow-sm">
+          <div className="flex items-center justify-between text-label-secondary">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Tuntas KKM</span>
+            <BookOpen size={14} className="text-primary" />
           </div>
-          <span className="text-2xl font-bold tabular-nums text-label">
+          <span className="text-2xl font-bold tabular-nums text-primary">
             {statsSummary.percentTuntas}%
           </span>
-          <span className="text-[11px] text-label-secondary">
-            Mencapai KKM ({statsSummary.kkm})
-          </span>
+          <span className="text-[11px] text-label-secondary">&ge; {statsSummary.kkm} poin KKM</span>
         </div>
       </div>
 
-      {/* Main Table Section */}
-      <section className="bg-bg-secondary rounded-[28px] shadow-[0_4px_16px_rgba(0,0,0,0.08)] overflow-hidden flex flex-col">
-        {/* Table Toolbar */}
-        <div className="p-4 md:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-[0.5px] border-separator">
-          <div className="flex items-center gap-2 text-label">
-            <span className="font-semibold text-[17px]">
-              Daftar Siswa {selectedKelas ? `(${selectedKelas.nama})` : ''}
+      {/* Spreadsheet-Grade Matrix Table */}
+      <section className="bg-card rounded-xl border border-separator shadow-sm overflow-hidden flex flex-col">
+        
+        {/* Table Controls Header */}
+        <div className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-separator bg-bg/50">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-sm text-label">
+              Daftar Peserta Didik {selectedKelas ? `Kelas ${selectedKelas.nama}` : ''}
             </span>
-            <span className="text-xs px-2.5 py-0.5 rounded-full bg-fill text-label-secondary font-medium">
-              Bobot: Tugas (30%), UTS (30%), UAS (40%)
-            </span>
+            {dirtyCount > 0 && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--status-dirty-bg)] border border-[var(--status-dirty-border)] text-[var(--status-dirty)] text-[11px] font-semibold">
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--status-dirty)] animate-pulse"></span>
+                {dirtyCount} siswa belum disimpan
+              </span>
+            )}
           </div>
 
           <div className="relative w-full sm:w-64">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary" />
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary" />
             <input
               type="text"
-              placeholder="Cari nama / NISN..."
+              placeholder="Cari nama atau NISN..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-9 pl-9 pr-4 rounded-full bg-fill text-label text-sm placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-accent transition-all"
+              className="w-full h-8 pl-8 pr-3 rounded-lg bg-bg border border-separator text-label text-xs placeholder:text-label-tertiary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
             />
           </div>
         </div>
 
-        {/* Table Body */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[760px]">
-            <thead>
-              <tr className="border-b-[0.5px] border-separator bg-bg/40">
-                <th className="px-5 py-3.5 text-[12px] font-semibold text-label-secondary uppercase tracking-wider w-16">
-                  No
-                </th>
-                <th className="px-5 py-3.5 text-[12px] font-semibold text-label-secondary uppercase tracking-wider">
-                  Nama Siswa / NISN
-                </th>
-                <th className="px-4 py-3.5 text-[12px] font-semibold text-label-secondary uppercase tracking-wider w-28 text-center">
-                  Tugas (30%)
-                </th>
-                <th className="px-4 py-3.5 text-[12px] font-semibold text-label-secondary uppercase tracking-wider w-28 text-center">
-                  UTS (30%)
-                </th>
-                <th className="px-4 py-3.5 text-[12px] font-semibold text-label-secondary uppercase tracking-wider w-28 text-center">
-                  UAS (40%)
-                </th>
-                <th className="px-4 py-3.5 text-[12px] font-semibold text-label-secondary uppercase tracking-wider w-28 text-center">
-                  Nilai Akhir
-                </th>
-                <th className="px-4 py-3.5 text-[12px] font-semibold text-label-secondary uppercase tracking-wider w-28 text-center">
-                  Status
-                </th>
-                <th className="px-5 py-3.5 text-[12px] font-semibold text-label-secondary uppercase tracking-wider w-24 text-right">
-                  Aksi
-                </th>
+        {/* Scrollable Table Area with Sticky Headers */}
+        <div className="overflow-x-auto max-h-[65vh]">
+          <table className="w-full text-left border-collapse min-w-[780px]">
+            <thead className="sticky top-0 z-20 bg-card border-b border-separator shadow-xs">
+              <tr className="text-xs font-semibold text-label-secondary uppercase tracking-wider">
+                <th className="px-4 py-3 w-12 text-center">No</th>
+                <th className="px-4 py-3 min-w-[200px]">Nama Peserta Didik / NISN</th>
+                <th className="px-3 py-3 w-28 text-center bg-bg/30">Tugas (40%)</th>
+                <th className="px-3 py-3 w-28 text-center bg-bg/30">UTS (30%)</th>
+                <th className="px-3 py-3 w-28 text-center bg-bg/30">UAS (30%)</th>
+                <th className="px-3 py-3 w-24 text-center">Nilai Akhir</th>
+                <th className="px-3 py-3 w-20 text-center">Predikat</th>
+                <th className="px-3 py-3 w-28 text-center">Status</th>
+                <th className="px-4 py-3 w-16 text-right">Aksi</th>
               </tr>
             </thead>
-            <tbody className="text-[14px] text-label divide-y divide-separator/40">
+            <tbody className="text-sm divide-y divide-separator">
               {isLoadingNilai || isLoadingMaster ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-label-secondary">
+                  <td colSpan={9} className="px-6 py-12 text-center text-label-secondary">
                     <div className="flex flex-col items-center justify-center gap-2">
-                      <RefreshCw size={24} className="animate-spin text-accent" />
-                      <span>Memuat data siswa dan nilai...</span>
+                      <RefreshCw size={20} className="animate-spin text-primary" />
+                      <span className="text-xs">Memuat data nilai siswa...</span>
                     </div>
                   </td>
                 </tr>
               ) : filteredSiswa.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-14 text-center">
+                  <td colSpan={9} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center justify-center gap-2">
-                      <Inbox size={42} className="text-label-tertiary mb-1" strokeWidth={1.5} />
-                      <p className="font-semibold text-[16px]">Tidak ada data siswa ditemukan</p>
-                      <p className="text-[13px] text-label-secondary max-w-md mx-auto">
-                        Belum ada siswa di kelas ini. Anda dapat menginput nilai secara manual menggunakan tombol <strong>&quot;Input Nilai Manual&quot;</strong> di atas, atau menambahkan siswa di menu Siswa.
+                      <Inbox size={36} className="text-label-tertiary" />
+                      <p className="font-semibold text-sm text-label">Tidak ada data siswa ditemukan</p>
+                      <p className="text-xs text-label-secondary max-w-sm">
+                        Belum ada siswa di kelas ini atau tidak cocok dengan kata kunci pencarian.
                       </p>
                     </div>
                   </td>
@@ -819,105 +874,134 @@ export default function NilaiPage() {
               ) : (
                 filteredSiswa.map((siswa, idx) => {
                   const studentScores = scores[siswa.id] || { TUGAS: '', UTS: '', UAS: '' };
-                  const { avg, passed } = calculateFinal(studentScores);
+                  const { avg, passed, predikat } = calculateFinal(studentScores);
                   const isSavingThis = savingSiswaId === siswa.id;
+                  const rowDirty = isRowDirty(siswa.id);
 
                   return (
                     <tr
                       key={siswa.id}
-                      className="hover:bg-fill/50 transition-colors group"
+                      className={`transition-colors ${
+                        rowDirty 
+                          ? 'bg-[var(--status-dirty-bg)]/40 hover:bg-[var(--status-dirty-bg)]/60' 
+                          : 'hover:bg-bg/60'
+                      }`}
                     >
-                      <td className="px-5 py-3.5 font-medium text-label-secondary tabular-nums">
+                      <td className="px-4 py-2.5 text-center text-xs font-mono text-label-tertiary tabular-nums">
                         {idx + 1}
                       </td>
-                      <td className="px-5 py-3.5">
-                        <div className="font-semibold text-label">{siswa.nama}</div>
-                        <div className="text-xs text-label-secondary tabular-nums">{siswa.nisn}</div>
+
+                      <td className="px-4 py-2.5">
+                        <div className="font-medium text-label text-sm flex items-center gap-1.5">
+                          <span>{siswa.nama}</span>
+                          {rowDirty && (
+                            <span className="w-2 h-2 rounded-full bg-[var(--status-dirty)] shrink-0" title="Ada perubahan belum disimpan" />
+                          )}
+                        </div>
+                        <div className="text-xs font-mono text-label-secondary tabular-nums">
+                          {siswa.nisn}
+                        </div>
                       </td>
 
-                      {/* Input Tugas */}
-                      <td className="px-4 py-3 text-center">
+                      {/* Tugas Input */}
+                      <td className="px-3 py-2 text-center bg-bg/20">
                         <input
                           type="number"
                           min="0"
                           max="100"
+                          data-row-idx={idx}
+                          data-col-type="TUGAS"
                           placeholder="-"
                           value={studentScores.TUGAS ?? ''}
                           onChange={(e) => handleScoreChange(siswa.id, 'TUGAS', e.target.value)}
-                          className="w-20 h-9 text-center rounded-lg bg-fill font-medium text-label tabular-nums focus:outline-none focus:ring-2 focus:ring-accent transition-all placeholder:text-label-tertiary"
+                          onKeyDown={(e) => handleInputKeyDown(e, idx, 'TUGAS')}
+                          className="w-20 h-8 text-center rounded-md border border-separator bg-card font-mono text-xs font-semibold text-label tabular-nums focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-label-tertiary"
                         />
                       </td>
 
-                      {/* Input UTS */}
-                      <td className="px-4 py-3 text-center">
+                      {/* UTS Input */}
+                      <td className="px-3 py-2 text-center bg-bg/20">
                         <input
                           type="number"
                           min="0"
                           max="100"
+                          data-row-idx={idx}
+                          data-col-type="UTS"
                           placeholder="-"
                           value={studentScores.UTS ?? ''}
                           onChange={(e) => handleScoreChange(siswa.id, 'UTS', e.target.value)}
-                          className="w-20 h-9 text-center rounded-lg bg-fill font-medium text-label tabular-nums focus:outline-none focus:ring-2 focus:ring-accent transition-all placeholder:text-label-tertiary"
+                          onKeyDown={(e) => handleInputKeyDown(e, idx, 'UTS')}
+                          className="w-20 h-8 text-center rounded-md border border-separator bg-card font-mono text-xs font-semibold text-label tabular-nums focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-label-tertiary"
                         />
                       </td>
 
-                      {/* Input UAS */}
-                      <td className="px-4 py-3 text-center">
+                      {/* UAS Input */}
+                      <td className="px-3 py-2 text-center bg-bg/20">
                         <input
                           type="number"
                           min="0"
                           max="100"
+                          data-row-idx={idx}
+                          data-col-type="UAS"
                           placeholder="-"
                           value={studentScores.UAS ?? ''}
                           onChange={(e) => handleScoreChange(siswa.id, 'UAS', e.target.value)}
-                          className="w-20 h-9 text-center rounded-lg bg-fill font-medium text-label tabular-nums focus:outline-none focus:ring-2 focus:ring-accent transition-all placeholder:text-label-tertiary"
+                          onKeyDown={(e) => handleInputKeyDown(e, idx, 'UAS')}
+                          className="w-20 h-8 text-center rounded-md border border-separator bg-card font-mono text-xs font-semibold text-label tabular-nums focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-label-tertiary"
                         />
                       </td>
 
-                      {/* Nilai Akhir */}
-                      <td className="px-4 py-3 text-center">
+                      {/* Nilai Akhir Auto-Calculated */}
+                      <td className="px-3 py-2 text-center">
                         <span
-                          className={`font-bold tabular-nums text-[15px] ${
+                          className={`font-mono font-bold tabular-nums text-sm ${
                             avg === null
                               ? 'text-label-tertiary'
                               : passed
-                              ? 'text-[var(--green)]'
-                              : 'text-[var(--red)]'
+                              ? 'text-primary'
+                              : 'text-[var(--status-fail)]'
                           }`}
                         >
                           {avg !== null ? avg : '-'}
                         </span>
                       </td>
 
-                      {/* Status Kelulusan */}
-                      <td className="px-4 py-3 text-center">
+                      {/* Predikat */}
+                      <td className="px-3 py-2 text-center font-bold text-xs">
+                        <span className={passed ? 'text-primary' : avg !== null ? 'text-[var(--status-fail)]' : 'text-label-tertiary'}>
+                          {predikat}
+                        </span>
+                      </td>
+
+                      {/* Status KKM */}
+                      <td className="px-3 py-2 text-center">
                         {avg === null ? (
-                          <span className="text-xs px-2.5 py-1 rounded-full bg-fill text-label-tertiary font-medium">
-                            Belum lengkap
+                          <span className="text-[11px] px-2 py-0.5 rounded bg-fill text-label-tertiary font-medium">
+                            Kosong
                           </span>
                         ) : passed ? (
-                          <span className="text-xs px-2.5 py-1 rounded-full bg-[color-mix(in_srgb,var(--green)_18%,transparent)] text-[var(--green)] font-semibold">
+                          <span className="text-[11px] px-2 py-0.5 rounded bg-primary-subtle text-primary border border-primary-border font-semibold">
                             Tuntas
                           </span>
                         ) : (
-                          <span className="text-xs px-2.5 py-1 rounded-full bg-[color-mix(in_srgb,var(--red)_18%,transparent)] text-[var(--red)] font-semibold">
+                          <span className="text-[11px] px-2 py-0.5 rounded bg-[var(--status-fail-bg)] text-[var(--status-fail)] border border-[var(--status-fail-border)] font-semibold">
                             Remedial
                           </span>
                         )}
                       </td>
 
-                      {/* Simpan Per Baris */}
-                      <td className="px-5 py-3 text-right">
+                      {/* Aksi Simpan Per Baris */}
+                      <td className="px-4 py-2 text-right">
                         <button
                           onClick={() => saveStudentScores(siswa.id)}
                           disabled={isSavingThis || savingAll}
                           title="Simpan nilai siswa ini"
-                          className="p-2 rounded-full hover:bg-fill text-label-secondary hover:text-accent transition-colors active:scale-95 disabled:opacity-40"
+                          className="p-1.5 rounded-md hover:bg-card-subtle text-label-secondary hover:text-primary transition-colors disabled:opacity-40 cursor-pointer"
                         >
                           {isSavingThis ? (
-                            <RefreshCw size={16} className="animate-spin text-accent" />
+                            <RefreshCw size={14} className="animate-spin text-primary" />
                           ) : (
-                            <Save size={16} />
+                            <Save size={14} className={rowDirty ? 'text-[var(--status-dirty)]' : ''} />
                           )}
                         </button>
                       </td>
@@ -930,153 +1014,145 @@ export default function NilaiPage() {
         </div>
       </section>
 
-      {/* Modal Input Nilai Manual */}
+      {/* Modal Input Nilai Manual Tunggal */}
       {isManualModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-150">
-          <div
-            className="glass glass-thick w-full max-w-lg p-6 relative flex flex-col gap-6"
-            style={{ '--glass-radius': 'var(--radius-2xl)' } as React.CSSProperties}
-          >
-            <button
-              onClick={() => setIsManualModalOpen(false)}
-              className="absolute top-4 right-4 p-2 rounded-full hover:bg-fill transition-colors text-label-secondary"
-            >
-              <X size={22} />
-            </button>
-
-            <div>
-              <h2 className="text-[22px] font-semibold text-label">Input Nilai Siswa Manual</h2>
-              <p className="text-[14px] text-label-secondary">
-                Pilih siswa dan mata pelajaran secara spesifik untuk memasukkan nilai tugas, UTS, atau UAS.
-              </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-card w-full max-w-md p-6 rounded-2xl border border-separator shadow-lg relative flex flex-col gap-5">
+            <div className="flex items-center justify-between pb-2 border-b border-separator">
+              <div>
+                <h2 className="text-base font-bold text-label">Input Nilai Siswa Tunggal</h2>
+                <p className="text-xs text-label-secondary">Penilaian manual perorangan</p>
+              </div>
+              <button
+                onClick={() => setIsManualModalOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-fill text-label-secondary transition-colors"
+              >
+                <X size={18} />
+              </button>
             </div>
 
             {errorMsg && (
-              <div className="p-3 rounded-lg flex items-start gap-2 bg-[color-mix(in_srgb,var(--red)_12%,transparent)] text-label">
-                <AlertCircle size={18} className="text-[var(--red)] mt-0.5 shrink-0" />
-                <p className="text-sm font-medium">{errorMsg}</p>
+              <div className="p-3 rounded-lg flex items-start gap-2 bg-[var(--status-fail-bg)] border border-[var(--status-fail-border)] text-[var(--status-fail)] text-xs">
+                <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                <span>{errorMsg}</span>
               </div>
             )}
 
-            <form onSubmit={handleManualSubmit} className="flex flex-col gap-4">
-              {/* Pilih Siswa */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[14px] font-medium text-label">Pilih Siswa</label>
+            <form onSubmit={handleManualSubmit} className="flex flex-col gap-3.5">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-label">Pilih Siswa</label>
                 <select
                   required
                   value={manualForm.siswaId}
                   onChange={(e) => setManualForm({ ...manualForm, siswaId: e.target.value })}
-                  className="h-11 px-4 rounded-[12px] bg-fill text-label focus:outline-none focus:ring-2 focus:ring-accent cursor-pointer"
+                  className="h-9 px-3 rounded-lg bg-bg border border-separator text-label text-xs focus:outline-none focus:border-primary cursor-pointer"
                 >
                   <option value="">-- Pilih Siswa --</option>
                   {allSiswaList.map((s) => (
-                    <option key={s.id} value={s.id} className="bg-bg text-label">
-                      {s.nama} ({s.nisn}) {s.kelas ? `- Kelas: ${s.kelas.nama}` : ''}
+                    <option key={s.id} value={s.id}>
+                      {s.nama} ({s.nisn}) {s.kelas ? `- Kelas ${s.kelas.nama}` : ''}
                     </option>
                   ))}
                 </select>
               </div>
 
-              {/* Pilih Mapel */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[14px] font-medium text-label">Mata Pelajaran</label>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-label">Mata Pelajaran</label>
                 <select
                   required
                   value={manualForm.mapelId}
                   onChange={(e) => setManualForm({ ...manualForm, mapelId: e.target.value })}
-                  className="h-11 px-4 rounded-[12px] bg-fill text-label focus:outline-none focus:ring-2 focus:ring-accent cursor-pointer"
+                  className="h-9 px-3 rounded-lg bg-bg border border-separator text-label text-xs focus:outline-none focus:border-primary cursor-pointer"
                 >
                   <option value="">-- Pilih Mapel --</option>
                   {manualMapelList.map((m) => (
-                    <option key={m.id} value={m.id} className="bg-bg text-label">
+                    <option key={m.id} value={m.id}>
                       {m.nama} (KKM: {m.kkm})
                     </option>
                   ))}
                 </select>
               </div>
 
-              {/* Semester & Tahun Ajaran */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[14px] font-medium text-label">Semester</label>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold text-label">Semester</label>
                   <select
                     value={manualForm.semester}
                     onChange={(e) => setManualForm({ ...manualForm, semester: e.target.value })}
-                    className="h-11 px-3 rounded-[12px] bg-fill text-label focus:outline-none focus:ring-2 focus:ring-accent cursor-pointer"
+                    className="h-9 px-3 rounded-lg bg-bg border border-separator text-label text-xs focus:outline-none focus:border-primary cursor-pointer"
                   >
-                    <option value="GANJIL" className="bg-bg text-label">Ganjil</option>
-                    <option value="GENAP" className="bg-bg text-label">Genap</option>
+                    <option value="GANJIL">Ganjil</option>
+                    <option value="GENAP">Genap</option>
                   </select>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[14px] font-medium text-label">Tahun Ajaran</label>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold text-label">Tahun Ajaran</label>
                   <input
                     type="text"
                     required
                     value={manualForm.tahunAjaran}
                     onChange={(e) => setManualForm({ ...manualForm, tahunAjaran: e.target.value })}
-                    className="h-11 px-3 rounded-[12px] bg-fill text-label focus:outline-none focus:ring-2 focus:ring-accent"
+                    className="h-9 px-3 rounded-lg bg-bg border border-separator text-label text-xs focus:outline-none focus:border-primary"
                     placeholder="2025/2026"
                   />
                 </div>
               </div>
 
-              {/* Kolom Nilai: Tugas, UTS, UAS */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[13px] font-medium text-label-secondary">Tugas (0-100)</label>
+              <div className="grid grid-cols-3 gap-2.5 pt-1">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-semibold text-label-secondary">Tugas (40%)</label>
                   <input
                     type="number"
                     min="0"
                     max="100"
-                    placeholder="Contoh: 85"
+                    placeholder="0-100"
                     value={manualForm.tugas}
                     onChange={(e) => setManualForm({ ...manualForm, tugas: e.target.value })}
-                    className="h-11 px-3 rounded-[12px] bg-fill text-label text-center font-semibold focus:outline-none focus:ring-2 focus:ring-accent"
+                    className="h-9 px-2.5 rounded-lg bg-bg border border-separator text-label text-center font-mono text-xs font-semibold focus:outline-none focus:border-primary"
                   />
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[13px] font-medium text-label-secondary">UTS (0-100)</label>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-semibold text-label-secondary">UTS (30%)</label>
                   <input
                     type="number"
                     min="0"
                     max="100"
-                    placeholder="Contoh: 80"
+                    placeholder="0-100"
                     value={manualForm.uts}
                     onChange={(e) => setManualForm({ ...manualForm, uts: e.target.value })}
-                    className="h-11 px-3 rounded-[12px] bg-fill text-label text-center font-semibold focus:outline-none focus:ring-2 focus:ring-accent"
+                    className="h-9 px-2.5 rounded-lg bg-bg border border-separator text-label text-center font-mono text-xs font-semibold focus:outline-none focus:border-primary"
                   />
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[13px] font-medium text-label-secondary">UAS (0-100)</label>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-semibold text-label-secondary">UAS (30%)</label>
                   <input
                     type="number"
                     min="0"
                     max="100"
-                    placeholder="Contoh: 90"
+                    placeholder="0-100"
                     value={manualForm.uas}
                     onChange={(e) => setManualForm({ ...manualForm, uas: e.target.value })}
-                    className="h-11 px-3 rounded-[12px] bg-fill text-label text-center font-semibold focus:outline-none focus:ring-2 focus:ring-accent"
+                    className="h-9 px-2.5 rounded-lg bg-bg border border-separator text-label text-center font-mono text-xs font-semibold focus:outline-none focus:border-primary"
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 mt-4">
+              <div className="flex justify-end gap-2 pt-3 border-t border-separator">
                 <button
                   type="button"
                   onClick={() => setIsManualModalOpen(false)}
-                  className="h-11 px-5 rounded-full font-semibold text-label hover:bg-fill transition-colors"
+                  className="h-9 px-4 rounded-lg text-xs font-semibold text-label-secondary hover:bg-fill transition-colors"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingManual}
-                  className="glass glass-accent h-11 px-6 rounded-full font-semibold text-white active:scale-95 transition-transform disabled:opacity-50 flex items-center gap-2"
+                  className="h-9 px-4 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-medium transition-colors disabled:opacity-50 flex items-center gap-1.5"
                 >
                   {isSubmittingManual ? (
                     <>
-                      <RefreshCw size={16} className="animate-spin" />
+                      <RefreshCw size={14} className="animate-spin" />
                       <span>Menyimpan...</span>
                     </>
                   ) : (
@@ -1088,6 +1164,7 @@ export default function NilaiPage() {
           </div>
         </div>
       )}
+
     </div>
   );
 }

@@ -1,18 +1,10 @@
-import type {Metadata} from "next";
-import { Inter } from "next/font/google";
+import type { Metadata } from "next";
 import './global.css';
 import { ThemeProvider } from '@/lib/ThemeContext';
-import FloatingGlassControl from './components/FloatingGlassControl';
-
-const inter = Inter({
-    subsets: ['latin'],
-    variable: '--font-inter',
-    display: "swap",
-});
 
 export const metadata: Metadata = {
-    title: 'E-Rapor SMP Al-Hidayah',
-    description: 'Sistem E-Rapor Berbasis Web Terintegrasi - SMP Al-Hidayah',
+    title: 'E-Rapor SMP Al-Hidayah Medan',
+    description: 'Sistem Informasi Evaluasi Belajar & E-Rapor Digital Terintegrasi - SMP Al-Hidayah Medan',
 };
 
 export default function RootLayout({
@@ -21,17 +13,16 @@ export default function RootLayout({
     children: React.ReactNode;
 }>) {
     return (
-        <html lang="id" className={inter.variable} suppressHydrationWarning>
+        <html lang="id" suppressHydrationWarning>
             <head>
                 <script
                     dangerouslySetInnerHTML={{
-                        __html: `try{var t=localStorage.getItem("siakad_theme");if(t){document.documentElement.setAttribute("data-theme", t)}else if(window.matchMedia("(prefers-color-scheme: dark)").matches){document.documentElement.setAttribute("data-theme", "dark")};var v=localStorage.getItem("glass-intensity");if(v!==null)document.documentElement.style.setProperty("--glass-intensity", v)}catch(e){}`,
+                        __html: `try{var t=localStorage.getItem("siakad_theme");if(t){document.documentElement.setAttribute("data-theme", t)}else if(window.matchMedia("(prefers-color-scheme: dark)").matches){document.documentElement.setAttribute("data-theme", "dark")}}catch(e){}try{var r=localStorage.getItem("siakad_role");if(r){document.documentElement.setAttribute("data-role", r)}}catch(e){}`,
                     }}
                 />
             </head>
             <body>
                 <ThemeProvider>
-                    <FloatingGlassControl />
                     {children}
                 </ThemeProvider>
             </body>
