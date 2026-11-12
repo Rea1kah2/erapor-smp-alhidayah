@@ -14,7 +14,7 @@
     "test": "node --import tsx --test src/lib/*.test.ts",
     "backfill:academic-history": "tsx prisma/backfill-academic-history.ts",
     "backfill:academic-history:apply": "tsx prisma/backfill-academic-history.ts --apply",
-    "postinstall": "if [ -x ./node_modules/.bin/prisma ]; then npm run prisma:generate && (prisma skills sync || true); fi"
+    "postinstall": "prisma generate || true"
   },
   "keywords": [],
   "author": "",
