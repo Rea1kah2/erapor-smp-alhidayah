@@ -10,16 +10,16 @@ import {
   Filter,
   CheckCircle2,
   AlertCircle,
-  Inbox,
-  Layers,
   Award,
   BookOpen,
   TrendingUp,
   RefreshCw,
   Plus,
   X,
-  Keyboard
+  Keyboard,
+  Layers
 } from 'lucide-react';
+import { useAcademicYear } from '@/lib/AcademicYearContext';
 
 interface Kelas {
   id: string;
@@ -54,8 +54,11 @@ interface NilaiRecord {
 
 const JENIS_NILAI = ['TUGAS', 'UTS', 'UAS'] as const;
 type JenisNilaiType = (typeof JENIS_NILAI)[number];
+const FILTER_STORAGE_KEY = 'siakad_nilai_filter_v1';
 
 export default function NilaiPage() {
+  const { semester, tahunAjaran, setSemester, setTahunAjaran, yearOptions } = useAcademicYear();
+
   // Master options
   const [kelasList, setKelasList] = useState<Kelas[]>([]);
   const [mapelList, setMapelList] = useState<Mapel[]>([]);
@@ -66,9 +69,6 @@ export default function NilaiPage() {
   // Filter selections
   const [selectedKelasId, setSelectedKelasId] = useState<string>('');
   const [selectedMapelId, setSelectedMapelId] = useState<string>('');
-  const [yearOptions, setYearOptions] = useState<string[]>([]);
-  const [semester, setSemester] = useState<string>('GANJIL');
-  const [tahunAjaran, setTahunAjaran] = useState<string>('');
 
   // Nilai data states
   const [scores, setScores] = useState<Record<string, Record<string, string>>>({});
@@ -96,44 +96,67 @@ export default function NilaiPage() {
   });
   const [isSubmittingManual, setIsSubmittingManual] = useState(false);
 
-  // Fetch classes, subjects, and all students on mount
+  // Restore filter dari sessionStorage saat inisialisasi
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(FILTER_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        queueMicrotask(() => {
+          if (parsed.kelasId) setSelectedKelasId(parsed.kelasId);
+          if (parsed.mapelId) setSelectedMapelId(parsed.mapelId);
+        });
+      }
+    } catch {}
+  }, []);
+
+  // Simpan filter ke sessionStorage saat berubah
+  useEffect(() => {
+    if (selectedKelasId || selectedMapelId) {
+      try {
+        sessionStorage.setItem(
+          FILTER_STORAGE_KEY,
+          JSON.stringify({ kelasId: selectedKelasId, mapelId: selectedMapelId })
+        );
+      } catch {}
+    }
+  }, [selectedKelasId, selectedMapelId]);
+
+  // Fetch classes, subjects, and all students on mount & when academic year changes
   useEffect(() => {
     const fetchMaster = async () => {
       setIsLoadingMaster(true);
       try {
-        const headers = {};
-
-        const [resKelas, resMapel, resAllSiswa, resYears] = await Promise.all([
-          apiFetch('/api/master/kelas', { headers }),
-          apiFetch('/api/master/mapel', { headers }),
-          apiFetch('/api/master/siswa', { headers }),
-          apiFetch('/api/master/tahun-ajaran', { headers })
+        const queryYear = tahunAjaran ? `?tahunAjaran=${encodeURIComponent(tahunAjaran)}` : '';
+        const [resKelas, resMapel, resAllSiswa] = await Promise.all([
+          apiFetch(`/api/master/kelas${queryYear}`),
+          apiFetch(`/api/master/mapel${queryYear}`),
+          apiFetch(`/api/master/siswa${queryYear}`)
         ]);
 
+        let kData: Kelas[] = [];
         if (resKelas.ok) {
-          const kData: Kelas[] = await resKelas.json();
+          kData = await resKelas.json();
           setKelasList(kData);
-          if (kData.length > 0) setSelectedKelasId(kData[0].id);
+          setSelectedKelasId((current) => {
+            if (current && kData.some((k) => k.id === current)) return current;
+            return kData[0]?.id || '';
+          });
         }
 
+        let mData: Mapel[] = [];
         if (resMapel.ok) {
-          const mData: Mapel[] = await resMapel.json();
+          mData = await resMapel.json();
           setMapelList(mData);
-          if (mData.length > 0) setSelectedMapelId(mData[0].id);
+          setSelectedMapelId((current) => {
+            if (current && mData.some((m) => m.id === current)) return current;
+            return mData[0]?.id || '';
+          });
         }
 
         if (resAllSiswa.ok) {
           const sData: Siswa[] = await resAllSiswa.json();
           setAllSiswaList(sData);
-        }
-        if (resYears.ok) {
-          const years: Array<{ nama: string; aktif: boolean }> = await resYears.json();
-          setYearOptions(years.map((year) => year.nama));
-          const activeYear = years.find((year) => year.aktif)?.nama;
-          if (activeYear) {
-            setTahunAjaran(activeYear);
-            setManualForm((previous) => ({ ...previous, tahunAjaran: activeYear }));
-          }
         }
       } catch (err) {
         console.error('Gagal memuat master kelas & mapel', err);
@@ -144,48 +167,29 @@ export default function NilaiPage() {
     };
 
     fetchMaster();
-  }, []);
-
-  useEffect(() => {
-    if (!tahunAjaran) return;
-    const loadAcademicYear = async () => {
-      const [classResponse, subjectResponse, studentResponse] = await Promise.all([
-        apiFetch(`/api/master/kelas?tahunAjaran=${encodeURIComponent(tahunAjaran)}`),
-        apiFetch(`/api/master/mapel?tahunAjaran=${encodeURIComponent(tahunAjaran)}`),
-        apiFetch(`/api/master/siswa?tahunAjaran=${encodeURIComponent(tahunAjaran)}`)
-      ]);
-      if (classResponse.ok) {
-        const classes: Kelas[] = await classResponse.json();
-        setKelasList(classes);
-        setSelectedKelasId((current) => classes.some((kelas) => kelas.id === current) ? current : classes[0]?.id || '');
-      }
-      if (subjectResponse.ok) {
-        const subjects: Mapel[] = await subjectResponse.json();
-        setMapelList(subjects);
-        setSelectedMapelId((current) => subjects.some((mapel) => mapel.id === current) ? current : subjects[0]?.id || '');
-      }
-      if (studentResponse.ok) setAllSiswaList(await studentResponse.json());
-    };
-    loadAcademicYear().catch(() => setErrorMsg('Gagal memuat data akademik untuk tahun ajaran tersebut.'));
   }, [tahunAjaran]);
 
+  // Update mapel options specific to selected class & academic year
   useEffect(() => {
     if (!tahunAjaran || !selectedKelasId) return;
     let cancelled = false;
     apiFetch(`/api/master/mapel?tahunAjaran=${encodeURIComponent(tahunAjaran)}&kelasId=${encodeURIComponent(selectedKelasId)}`)
       .then(async (response) => {
-        if (!response.ok) throw new Error('Gagal memuat mata pelajaran kelas.');
+        if (!response.ok) return;
         const subjects: Mapel[] = await response.json();
         if (cancelled) return;
-        setMapelList(subjects);
-        setSelectedMapelId((current) => subjects.some((subject) => subject.id === current) ? current : subjects[0]?.id || '');
+        if (subjects.length > 0) {
+          setMapelList(subjects);
+          setSelectedMapelId((current) =>
+            subjects.some((subject) => subject.id === current) ? current : subjects[0]?.id || ''
+          );
+        }
       })
-      .catch(() => {
-        if (!cancelled) setErrorMsg('Gagal memuat mata pelajaran untuk kelas yang dipilih.');
-      });
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [tahunAjaran, selectedKelasId]);
 
+  // Modal manual mapel list
   useEffect(() => {
     if (!isManualModalOpen || !manualForm.tahunAjaran || !manualForm.siswaId) return;
     const selectedStudent = allSiswaList.find((student) => student.id === manualForm.siswaId);
@@ -198,10 +202,11 @@ export default function NilaiPage() {
       });
       return () => { cancelled = true; };
     }
+
     let cancelled = false;
     apiFetch(`/api/master/mapel?tahunAjaran=${encodeURIComponent(manualForm.tahunAjaran)}&kelasId=${encodeURIComponent(selectedStudent.kelasId)}`)
       .then(async (response) => {
-        if (!response.ok) throw new Error('Gagal memuat mata pelajaran siswa.');
+        if (!response.ok) return;
         const subjects: Mapel[] = await response.json();
         if (cancelled) return;
         setManualMapelList(subjects);
@@ -210,27 +215,22 @@ export default function NilaiPage() {
           mapelId: subjects.some((subject) => subject.id === current.mapelId) ? current.mapelId : subjects[0]?.id || ''
         }));
       })
-      .catch(() => {
-        if (!cancelled) setErrorMsg('Gagal memuat mata pelajaran untuk siswa yang dipilih.');
-      });
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [isManualModalOpen, manualForm.siswaId, manualForm.tahunAjaran, allSiswaList]);
 
   // Fetch students & scores when filter changes
   const fetchFilterData = useCallback(async () => {
-    if (!selectedKelasId || !selectedMapelId) return;
+    if (!selectedKelasId || !selectedMapelId || !tahunAjaran) return;
 
     setIsLoadingNilai(true);
     setErrorMsg('');
 
     try {
-      const headers = {};
-
       const [resSiswa, resNilai] = await Promise.all([
-        apiFetch(`/api/master/siswa?kelasId=${selectedKelasId}&tahunAjaran=${encodeURIComponent(tahunAjaran)}`, { headers }),
+        apiFetch(`/api/master/siswa?kelasId=${selectedKelasId}&tahunAjaran=${encodeURIComponent(tahunAjaran)}`),
         apiFetch(
-          `/api/nilai/mapel?mapelId=${selectedMapelId}&semester=${semester}&tahunAjaran=${encodeURIComponent(tahunAjaran)}&kelasId=${selectedKelasId}`,
-          { headers }
+          `/api/nilai/mapel?mapelId=${selectedMapelId}&semester=${semester}&tahunAjaran=${encodeURIComponent(tahunAjaran)}&kelasId=${selectedKelasId}`
         ),
       ]);
 
@@ -356,7 +356,6 @@ export default function NilaiPage() {
 
       await Promise.all(promises);
       
-      // Update snapshot initial
       setInitialScores((prev) => ({
         ...prev,
         [siswaId]: { ...studentScores }
@@ -411,82 +410,22 @@ export default function NilaiPage() {
         });
       });
 
-      if (promises.length === 0) {
-        setErrorMsg('Tidak ada nilai untuk disimpan.');
-        setSavingAll(false);
-        return;
-      }
-
       await Promise.all(promises);
-
-      // Sinkronkan seluruh snapshot awal
       setInitialScores(JSON.parse(JSON.stringify(scores)));
-
-      setSuccessMsg(`Semua nilai untuk kelas ${selectedKelas?.nama || ''} berhasil disimpan!`);
+      setSuccessMsg(`Semua nilai siswa (${filteredSiswa.length} siswa) berhasil disimpan!`);
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err: unknown) {
       setErrorMsg(errorMessage(err, 'Gagal menyimpan semua nilai.'));
     } finally {
       setSavingAll(false);
     }
-  }, [filteredSiswa, scores, selectedKelas, selectedMapelId, semester, tahunAjaran]);
+  }, [filteredSiswa, scores, selectedMapelId, semester, tahunAjaran]);
 
-  // Keyboard Navigation: Enter or ArrowDown jumps to next student in same column, ArrowUp jumps to previous
-  const handleInputKeyDown = (
-    e: React.KeyboardEvent<HTMLInputElement>,
-    rowIndex: number,
-    jenis: JenisNilaiType
-  ) => {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-      e.preventDefault();
-      saveAllScores();
-      return;
-    }
-
-    if (e.key === 'Enter' || e.key === 'ArrowDown') {
-      e.preventDefault();
-      const nextInput = document.querySelector<HTMLInputElement>(
-        `input[data-row-idx="${rowIndex + 1}"][data-col-type="${jenis}"]`
-      );
-      if (nextInput) {
-        nextInput.focus();
-        nextInput.select();
-      }
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      const prevInput = document.querySelector<HTMLInputElement>(
-        `input[data-row-idx="${rowIndex - 1}"][data-col-type="${jenis}"]`
-      );
-      if (prevInput) {
-        prevInput.focus();
-        prevInput.select();
-      }
-    }
-  };
-
-  // Global Ctrl+S / Cmd+S Listener
-  useEffect(() => {
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        saveAllScores();
-      }
-    };
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [saveAllScores]);
-
-  // Handle Submit Modal Tambah Nilai Manual
+  // Submit modal input manual
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!manualForm.siswaId || !manualForm.mapelId) {
-      setErrorMsg('Pilih siswa dan mata pelajaran terlebih dahulu.');
-      return;
-    }
-
     setIsSubmittingManual(true);
     setErrorMsg('');
-    setSuccessMsg('');
 
     try {
       const headers = { 'Content-Type': 'application/json' };
@@ -546,7 +485,7 @@ export default function NilaiPage() {
     setIsManualModalOpen(true);
   };
 
-  // Perhitungan Nilai Akhir sesuai formula: Tugas 40%, UTS 30%, UAS 30%
+  // Perhitungan Nilai Akhir
   const calculateFinal = useCallback((studentScores?: Record<string, string>) => {
     if (!studentScores) return { avg: null, passed: false, predikat: '-' };
     const components = [
@@ -603,7 +542,7 @@ export default function NilaiPage() {
   }, [filteredSiswa, scores, selectedMapel, calculateFinal]);
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-5 pb-16">
       
       {/* Page Title & Action Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -620,7 +559,7 @@ export default function NilaiPage() {
         <div className="flex items-center gap-2.5 shrink-0">
           <button
             onClick={openManualModal}
-            className="h-9 px-3.5 rounded-lg border border-separator hover:bg-card-subtle text-xs font-semibold text-label flex items-center gap-1.5 transition-colors"
+            className="h-9 px-3.5 rounded-lg border border-separator hover:bg-card-subtle text-xs font-semibold text-label flex items-center gap-1.5 transition-colors cursor-pointer"
           >
             <Plus size={16} />
             <span>Input Tunggal</span>
@@ -655,29 +594,29 @@ export default function NilaiPage() {
 
       {/* Notifications */}
       {successMsg && (
-        <div className="p-3 rounded-lg flex items-center gap-2.5 bg-primary-subtle border border-primary-border text-primary text-xs font-medium">
+        <div className="p-3 rounded-lg flex items-center gap-2.5 bg-primary-subtle border border-primary-border text-primary text-xs font-medium animate-in fade-in duration-150">
           <CheckCircle2 size={16} className="shrink-0" />
           <span>{successMsg}</span>
         </div>
       )}
 
       {errorMsg && !isManualModalOpen && (
-        <div className="p-3 rounded-lg flex items-center gap-2.5 bg-[var(--status-fail-bg)] border border-[var(--status-fail-border)] text-[var(--status-fail)] text-xs font-medium">
+        <div className="p-3 rounded-lg flex items-center gap-2.5 bg-[var(--status-fail-bg)] border border-[var(--status-fail-border)] text-[var(--status-fail)] text-xs font-medium animate-in fade-in duration-150">
           <AlertCircle size={16} className="shrink-0" />
           <span>{errorMsg}</span>
         </div>
       )}
 
-      {/* Filter Section (Solid Crisp Card) */}
+      {/* Filter Section */}
       <section className="bg-card rounded-xl border border-separator p-4 shadow-sm flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs font-bold text-label-secondary uppercase tracking-wider">
             <Filter size={14} className="text-primary" />
-            <span>Filter Kelas & Mata Pelajaran</span>
+            <span>Pilihan Kelas & Mata Pelajaran</span>
           </div>
           <div className="hidden lg:flex items-center gap-1.5 text-[11px] text-label-tertiary">
             <Keyboard size={13} />
-            <span>Navigasi: Enter / Panah Bawah untuk turun baris &bull; Simpan: Ctrl+S</span>
+            <span>Ketik angka &bull; Panah untuk berpindah sel</span>
           </div>
         </div>
 
@@ -724,7 +663,7 @@ export default function NilaiPage() {
             </select>
           </div>
 
-          {/* Semester */}
+          {/* Semester (Sinkron Global) */}
           <div className="flex flex-col gap-1">
             <label className="text-xs font-semibold text-label">Semester</label>
             <select
@@ -737,7 +676,7 @@ export default function NilaiPage() {
             </select>
           </div>
 
-          {/* Tahun Ajaran */}
+          {/* Tahun Ajaran (Sinkron Global) */}
           <div className="flex flex-col gap-1">
             <label className="text-xs font-semibold text-label">Tahun Ajaran</label>
             <select
@@ -749,6 +688,24 @@ export default function NilaiPage() {
             </select>
           </div>
         </div>
+
+        {/* Active Filter Context Chips */}
+        {selectedKelas && selectedMapel && (
+          <div className="pt-2 border-t border-separator/50 flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-label-tertiary text-[11px] font-semibold uppercase tracking-wider">Konteks Aktif:</span>
+            <span className="px-2.5 py-0.5 rounded-full bg-primary-subtle border border-primary-border text-primary font-semibold text-xs">
+              {selectedKelas.nama}
+            </span>
+            <span className="text-label-tertiary">&bull;</span>
+            <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 font-semibold text-xs">
+              {selectedMapel.nama} (KKM {selectedMapel.kkm})
+            </span>
+            <span className="text-label-tertiary">&bull;</span>
+            <span className="px-2.5 py-0.5 rounded-md bg-fill text-label-secondary font-mono text-[11px] border border-separator/50">
+              Semester {semester} &bull; {tahunAjaran}
+            </span>
+          </div>
+        )}
       </section>
 
       {/* Metrics Row */}
@@ -776,7 +733,7 @@ export default function NilaiPage() {
           </span>
           <span className="text-[11px] text-label-secondary">
             {statsSummary.totalSiswa > 0
-              ? `${Math.round((statsSummary.dinilai / statsSummary.totalSiswa) * 100)}% siswa ternilai`
+              ? `${Math.round((statsSummary.dinilai / statsSummary.totalSiswa) * 100)}% siswa dinilai`
               : 'Belum ada siswa'}
           </span>
         </div>
@@ -849,154 +806,155 @@ export default function NilaiPage() {
                 <th className="px-4 py-3 w-16 text-right">Aksi</th>
               </tr>
             </thead>
-            <tbody className="text-sm divide-y divide-separator">
-              {isLoadingNilai || isLoadingMaster ? (
+            <tbody className="divide-y divide-separator text-sm">
+              {isLoadingNilai ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-label-secondary">
+                  <td colSpan={9} className="py-12 text-center text-label-secondary">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <RefreshCw size={20} className="animate-spin text-primary" />
-                      <span className="text-xs">Memuat data nilai siswa...</span>
+                      <span className="text-xs">Memuat lembar matriks nilai...</span>
                     </div>
                   </td>
                 </tr>
               ) : filteredSiswa.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <Inbox size={36} className="text-label-tertiary" />
-                      <p className="font-semibold text-sm text-label">Tidak ada data siswa ditemukan</p>
-                      <p className="text-xs text-label-secondary max-w-sm">
-                        Belum ada siswa di kelas ini atau tidak cocok dengan kata kunci pencarian.
-                      </p>
-                    </div>
+                  <td colSpan={9} className="py-12 text-center text-label-secondary">
+                    {siswaList.length === 0 ? (
+                      <div className="flex flex-col items-center gap-1.5">
+                        <span className="text-sm font-semibold text-label">Belum Ada Siswa di Kelas Ini</span>
+                        <span className="text-xs text-label-secondary max-w-sm">
+                          Silakan tempatkan siswa ke kelas ini melalui panel Penempatan Siswa di menu Manajemen Akun.
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs">Tidak ada siswa yang cocok dengan pencarian &quot;{searchQuery}&quot;.</span>
+                    )}
                   </td>
                 </tr>
               ) : (
                 filteredSiswa.map((siswa, idx) => {
                   const studentScores = scores[siswa.id] || { TUGAS: '', UTS: '', UAS: '' };
+                  const rowDirty = isRowDirty(siswa.id);
                   const { avg, passed, predikat } = calculateFinal(studentScores);
                   const isSavingThis = savingSiswaId === siswa.id;
-                  const rowDirty = isRowDirty(siswa.id);
 
                   return (
                     <tr
                       key={siswa.id}
-                      className={`transition-colors ${
-                        rowDirty 
-                          ? 'bg-[var(--status-dirty-bg)]/40 hover:bg-[var(--status-dirty-bg)]/60' 
-                          : 'hover:bg-bg/60'
+                      className={`hover:bg-card-subtle/50 transition-colors ${
+                        rowDirty ? 'bg-amber-500/5' : ''
                       }`}
                     >
-                      <td className="px-4 py-2.5 text-center text-xs font-mono text-label-tertiary tabular-nums">
+                      <td className="px-4 py-3 text-center text-xs text-label-tertiary tabular-nums">
                         {idx + 1}
                       </td>
 
-                      <td className="px-4 py-2.5">
-                        <div className="font-medium text-label text-sm flex items-center gap-1.5">
-                          <span>{siswa.nama}</span>
-                          {rowDirty && (
-                            <span className="w-2 h-2 rounded-full bg-[var(--status-dirty)] shrink-0" title="Ada perubahan belum disimpan" />
-                          )}
-                        </div>
-                        <div className="text-xs font-mono text-label-secondary tabular-nums">
-                          {siswa.nisn}
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-label leading-tight">{siswa.nama}</span>
+                          <span className="text-[11px] font-mono text-label-tertiary">{siswa.nisn}</span>
                         </div>
                       </td>
 
-                      {/* Tugas Input */}
-                      <td className="px-3 py-2 text-center bg-bg/20">
+                      {/* Tugas */}
+                      <td className="px-2 py-2 text-center bg-bg/20">
                         <input
                           type="number"
                           min="0"
                           max="100"
-                          data-row-idx={idx}
-                          data-col-type="TUGAS"
-                          placeholder="-"
-                          value={studentScores.TUGAS ?? ''}
+                          value={studentScores.TUGAS}
                           onChange={(e) => handleScoreChange(siswa.id, 'TUGAS', e.target.value)}
-                          onKeyDown={(e) => handleInputKeyDown(e, idx, 'TUGAS')}
-                          className="w-20 h-8 text-center rounded-md border border-separator bg-card font-mono text-xs font-semibold text-label tabular-nums focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-label-tertiary"
+                          placeholder="-"
+                          className="w-20 h-8 mx-auto px-2 text-center font-mono text-xs font-semibold rounded-md border border-separator bg-bg text-label focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                         />
                       </td>
 
-                      {/* UTS Input */}
-                      <td className="px-3 py-2 text-center bg-bg/20">
+                      {/* UTS */}
+                      <td className="px-2 py-2 text-center bg-bg/20">
                         <input
                           type="number"
                           min="0"
                           max="100"
-                          data-row-idx={idx}
-                          data-col-type="UTS"
-                          placeholder="-"
-                          value={studentScores.UTS ?? ''}
+                          value={studentScores.UTS}
                           onChange={(e) => handleScoreChange(siswa.id, 'UTS', e.target.value)}
-                          onKeyDown={(e) => handleInputKeyDown(e, idx, 'UTS')}
-                          className="w-20 h-8 text-center rounded-md border border-separator bg-card font-mono text-xs font-semibold text-label tabular-nums focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-label-tertiary"
+                          placeholder="-"
+                          className="w-20 h-8 mx-auto px-2 text-center font-mono text-xs font-semibold rounded-md border border-separator bg-bg text-label focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                         />
                       </td>
 
-                      {/* UAS Input */}
-                      <td className="px-3 py-2 text-center bg-bg/20">
+                      {/* UAS */}
+                      <td className="px-2 py-2 text-center bg-bg/20">
                         <input
                           type="number"
                           min="0"
                           max="100"
-                          data-row-idx={idx}
-                          data-col-type="UAS"
-                          placeholder="-"
-                          value={studentScores.UAS ?? ''}
+                          value={studentScores.UAS}
                           onChange={(e) => handleScoreChange(siswa.id, 'UAS', e.target.value)}
-                          onKeyDown={(e) => handleInputKeyDown(e, idx, 'UAS')}
-                          className="w-20 h-8 text-center rounded-md border border-separator bg-card font-mono text-xs font-semibold text-label tabular-nums focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-label-tertiary"
+                          placeholder="-"
+                          className="w-20 h-8 mx-auto px-2 text-center font-mono text-xs font-semibold rounded-md border border-separator bg-bg text-label focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                         />
                       </td>
 
-                      {/* Nilai Akhir Auto-Calculated */}
-                      <td className="px-3 py-2 text-center">
-                        <span
-                          className={`font-mono font-bold tabular-nums text-sm ${
-                            avg === null
-                              ? 'text-label-tertiary'
-                              : passed
-                              ? 'text-primary'
-                              : 'text-[var(--status-fail)]'
-                          }`}
-                        >
-                          {avg !== null ? avg : '-'}
-                        </span>
-                      </td>
-
-                      {/* Predikat */}
-                      <td className="px-3 py-2 text-center font-bold text-xs">
-                        <span className={passed ? 'text-primary' : avg !== null ? 'text-[var(--status-fail)]' : 'text-label-tertiary'}>
-                          {predikat}
-                        </span>
-                      </td>
-
-                      {/* Status KKM */}
-                      <td className="px-3 py-2 text-center">
-                        {avg === null ? (
-                          <span className="text-[11px] px-2 py-0.5 rounded bg-fill text-label-tertiary font-medium">
-                            Kosong
-                          </span>
-                        ) : passed ? (
-                          <span className="text-[11px] px-2 py-0.5 rounded bg-primary-subtle text-primary border border-primary-border font-semibold">
-                            Tuntas
+                      {/* Nilai Akhir NA */}
+                      <td className="px-3 py-3 text-center font-mono font-bold text-sm tabular-nums">
+                        {avg !== null ? (
+                          <span className={passed ? 'text-primary' : 'text-[var(--status-fail)]'}>
+                            {avg.toFixed(1)}
                           </span>
                         ) : (
-                          <span className="text-[11px] px-2 py-0.5 rounded bg-[var(--status-fail-bg)] text-[var(--status-fail)] border border-[var(--status-fail-border)] font-semibold">
-                            Remedial
-                          </span>
+                          <span className="text-label-tertiary">-</span>
                         )}
                       </td>
 
-                      {/* Aksi Simpan Per Baris */}
-                      <td className="px-4 py-2 text-right">
+                      {/* Predikat */}
+                      <td className="px-3 py-3 text-center font-bold text-xs">
+                        {predikat !== '-' ? (
+                          <span
+                            className={`inline-block w-6 h-6 rounded-md text-center leading-6 text-xs font-bold ${
+                              predikat === 'A'
+                                ? 'bg-primary-subtle text-primary border border-primary-border'
+                                : predikat === 'B'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : predikat === 'C'
+                                ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                : 'bg-[var(--status-fail-bg)] text-[var(--status-fail)] border border-[var(--status-fail-border)]'
+                            }`}
+                          >
+                            {predikat}
+                          </span>
+                        ) : (
+                          <span className="text-label-tertiary">-</span>
+                        )}
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-3 py-3 text-center">
+                        {avg !== null ? (
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                              passed
+                                ? 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border border-emerald-500/20'
+                                : 'bg-red-500/10 text-red-700 dark:text-red-300 border border-red-500/20'
+                            }`}
+                          >
+                            {passed ? 'Tuntas' : 'Remedial'}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-label-tertiary">Belum dinilai</span>
+                        )}
+                      </td>
+
+                      {/* Aksi Per Baris */}
+                      <td className="px-4 py-3 text-right">
                         <button
                           onClick={() => saveStudentScores(siswa.id)}
-                          disabled={isSavingThis || savingAll}
-                          title="Simpan nilai siswa ini"
-                          className="p-1.5 rounded-md hover:bg-card-subtle text-label-secondary hover:text-primary transition-colors disabled:opacity-40 cursor-pointer"
+                          disabled={isSavingThis || !rowDirty}
+                          title={rowDirty ? 'Simpan perubahan siswa ini' : 'Data sudah tersimpan'}
+                          className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                            rowDirty
+                              ? 'bg-amber-500/10 border-amber-500/30 text-amber-700 hover:bg-amber-500/20'
+                              : 'border-transparent text-label-tertiary hover:bg-fill'
+                          }`}
                         >
                           {isSavingThis ? (
                             <RefreshCw size={14} className="animate-spin text-primary" />
@@ -1014,6 +972,40 @@ export default function NilaiPage() {
         </div>
       </section>
 
+      {/* Sticky Save Bar (Hanya muncul jika ada baris nilai yang diubah) */}
+      {dirtyCount > 0 && (
+        <div className="sticky bottom-4 left-0 right-0 z-30 bg-card/95 backdrop-blur-md border border-amber-500/40 rounded-2xl p-4 shadow-xl flex items-center justify-between gap-4 animate-in slide-in-from-bottom duration-200">
+          <div className="flex items-center gap-3">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping shrink-0" />
+            <div>
+              <div className="text-xs font-bold text-label">
+                {dirtyCount} siswa memiliki nilai baru yang belum disimpan!
+              </div>
+              <div className="text-[11px] text-label-secondary hidden sm:block">
+                Tekan tombol Simpan Semua agar nilai langsung tersinkronisasi ke rekapitulasi rapor.
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={saveAllScores}
+            disabled={savingAll}
+            className="h-9 px-5 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs font-semibold shadow-md transition-all flex items-center gap-2 cursor-pointer shrink-0"
+          >
+            {savingAll ? (
+              <>
+                <RefreshCw size={14} className="animate-spin" />
+                <span>Menyimpan...</span>
+              </>
+            ) : (
+              <>
+                <Save size={15} />
+                <span>Simpan Semua ({dirtyCount})</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* Modal Input Nilai Manual Tunggal */}
       {isManualModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
@@ -1025,7 +1017,7 @@ export default function NilaiPage() {
               </div>
               <button
                 onClick={() => setIsManualModalOpen(false)}
-                className="p-1.5 rounded-lg hover:bg-fill text-label-secondary transition-colors"
+                className="p-1.5 rounded-lg hover:bg-fill text-label-secondary transition-colors cursor-pointer"
               >
                 <X size={18} />
               </button>
@@ -1141,14 +1133,14 @@ export default function NilaiPage() {
                 <button
                   type="button"
                   onClick={() => setIsManualModalOpen(false)}
-                  className="h-9 px-4 rounded-lg text-xs font-semibold text-label-secondary hover:bg-fill transition-colors"
+                  className="h-9 px-4 rounded-lg text-xs font-semibold text-label-secondary hover:bg-fill transition-colors cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingManual}
-                  className="h-9 px-4 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-medium transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                  className="h-9 px-4 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-medium transition-colors disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
                 >
                   {isSubmittingManual ? (
                     <>

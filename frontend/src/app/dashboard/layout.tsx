@@ -5,9 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
   LayoutDashboard, 
-  Users, 
   GraduationCap, 
-  BookOpen, 
   FileSpreadsheet, 
   Award,
   LogOut, 
@@ -18,16 +16,20 @@ import {
   School,
   ShieldCheck,
   Menu,
-  X
+  X,
+  Calendar
 } from 'lucide-react';
 import GlassModal from '../components/GlassModal';
 import { apiFetch, formatRoleLabel } from '@/lib/api';
 import { useTheme } from '@/lib/ThemeContext';
+import { AcademicYearProvider, useAcademicYear } from '@/lib/AcademicYearContext';
 
-export default function DashboardLayout({ children }: { children: ReactNode }) {
+function DashboardContent({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
+  const { semester, tahunAjaran, yearOptions, setSemester, setTahunAjaran, isLoading: isYearLoading } = useAcademicYear();
+
   const [isClient, setIsClient] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
@@ -84,15 +86,17 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   };
 
   // Navigasi dinamis berbasis hak akses role
+  // Catatan:
+  // - Data Guru dihapus (dilebur ke Manajemen Akun)
+  // - Akademik dihapus dari menu navigasi (dilebur ke tab di Manajemen Akun)
+  // - Rekap & Wali hanya untuk ADMIN dan GURU_WALI (disembunyikan dari GURU biasa)
   const navItems = useMemo(() => {
     const items = [
       { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'GURU', 'GURU_MAPEL', 'GURU_WALI', 'SISWA', 'ORTU'] },
       { name: 'Manajemen Akun', href: '/dashboard/manajemen', icon: ShieldCheck, roles: ['ADMIN'] },
-      { name: 'Data Guru', href: '/dashboard/guru', icon: Users, roles: ['ADMIN'] },
       { name: 'Data Siswa', href: '/dashboard/siswa', icon: GraduationCap, roles: ['ADMIN', 'GURU_MAPEL', 'GURU_WALI', 'GURU'] },
-      { name: 'Akademik', href: '/dashboard/akademik', icon: BookOpen, roles: ['ADMIN'] },
       { name: 'Input Nilai', href: '/dashboard/nilai', icon: FileSpreadsheet, roles: ['ADMIN', 'GURU_MAPEL', 'GURU_WALI', 'GURU'] },
-      { name: 'Rekap & Wali', href: '/dashboard/wali', icon: Award, roles: ['ADMIN', 'GURU_WALI', 'GURU'] },
+      { name: 'Rekap & Wali', href: '/dashboard/wali', icon: Award, roles: ['ADMIN', 'GURU_WALI'] },
       { name: 'Rapor Siswa', href: '/dashboard/rapor', icon: Award, roles: ['SISWA', 'ORTU'] },
     ];
 
@@ -145,7 +149,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
           <button 
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-1.5 rounded-lg hover:bg-fill text-label-secondary transition-colors shrink-0"
+            className="p-1.5 rounded-lg hover:bg-fill text-label-secondary transition-colors shrink-0 cursor-pointer"
             aria-label={isCollapsed ? 'Perlebar Sidebar' : 'Ciutkan Sidebar'}
             title={isCollapsed ? 'Perlebar' : 'Ciutkan'}
           >
@@ -186,7 +190,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         <div className="mt-auto pt-2 border-t border-separator/60">
           <button 
             onClick={handleLogout}
-            className={`w-full flex items-center h-10 px-3 rounded-lg text-[var(--status-fail)] hover:bg-[var(--status-fail-bg)] transition-colors text-sm ${
+            className={`w-full flex items-center h-10 px-3 rounded-lg text-[var(--status-fail)] hover:bg-[var(--status-fail-bg)] transition-colors text-sm cursor-pointer ${
               isCollapsed ? 'justify-center' : 'gap-3'
             }`}
             title={isCollapsed ? 'Keluar' : undefined}
@@ -221,16 +225,49 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               E-Rapor SMP Al-Hidayah
             </span>
             <span className="text-label-tertiary hidden sm:inline">&bull;</span>
-            <span className="text-sm font-semibold text-label truncate max-w-[170px] sm:max-w-none">
+            <span className="text-sm font-semibold text-label truncate max-w-[150px] sm:max-w-none">
               {activePageTitle}
             </span>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Context Global Semester & Tahun Ajaran (Non-Admin & Multi-role) */}
+            {!isYearLoading && (
+              <div className="flex items-center gap-1.5 bg-fill/60 p-1 rounded-xl border border-separator/60">
+                <div className="hidden lg:flex items-center gap-1 pl-1 text-[11px] font-semibold text-label-tertiary">
+                  <Calendar size={13} className="text-primary" />
+                </div>
+                <select
+                  value={semester}
+                  onChange={(e) => setSemester(e.target.value)}
+                  className="h-7 px-2 rounded-lg bg-card text-label text-xs font-medium border border-separator/50 focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                  title="Pilih Semester"
+                  aria-label="Semester"
+                >
+                  <option value="GANJIL">Ganjil</option>
+                  <option value="GENAP">Genap</option>
+                </select>
+
+                <select
+                  value={tahunAjaran}
+                  onChange={(e) => setTahunAjaran(e.target.value)}
+                  className="h-7 px-2 rounded-lg bg-card text-label text-xs font-mono border border-separator/50 focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                  title="Pilih Tahun Ajaran"
+                  aria-label="Tahun Ajaran"
+                >
+                  {yearOptions.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Theme Toggle (Dark/Light) */}
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-lg border border-separator hover:bg-fill text-label-secondary transition-colors"
+              className="p-1.5 sm:p-2 rounded-lg border border-separator hover:bg-fill text-label-secondary transition-colors cursor-pointer"
               title={theme === 'dark' ? 'Ganti ke Mode Terang' : 'Ganti ke Mode Gelap'}
               aria-label="Toggle Tema"
             >
@@ -247,7 +284,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                 {userEmail ? userEmail.charAt(0).toUpperCase() : 'U'}
               </div>
               <div className="hidden sm:flex flex-col">
-                <span className="text-xs font-medium text-label leading-tight truncate max-w-[140px]">
+                <span className="text-xs font-medium text-label leading-tight truncate max-w-[130px]">
                   {userEmail}
                 </span>
                 <span className="text-[10px] text-label-secondary leading-tight">
@@ -367,5 +404,13 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       />
 
     </div>
+  );
+}
+
+export default function DashboardLayout({ children }: { children: ReactNode }) {
+  return (
+    <AcademicYearProvider>
+      <DashboardContent>{children}</DashboardContent>
+    </AcademicYearProvider>
   );
 }

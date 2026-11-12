@@ -10,13 +10,13 @@ import {
   BookOpen, 
   FileSpreadsheet, 
   Award, 
-  CheckCircle2, 
-  User,
-  ArrowRight,
-  ShieldCheck,
-  HeartHandshake,
-  MessageSquare
+  User, 
+  ArrowRight, 
+  ShieldCheck, 
+  HeartHandshake, 
+  Calendar 
 } from 'lucide-react';
+import { useAcademicYear } from "@/lib/AcademicYearContext";
 
 interface SubjectSummary { id: string; nama: string; kkm: number; }
 interface DashboardProfile {
@@ -35,6 +35,7 @@ interface DashboardProfile {
 }
 
 export default function DashboardHome() {
+  const { semester, tahunAjaran } = useAcademicYear();
   const [profile, setProfile] = useState<DashboardProfile | null>(null);
   const [stats, setStats] = useState({ siswa: 0, guru: 0, kelas: 0, mapel: 0 });
   const [loading, setLoading] = useState(true);
@@ -75,9 +76,9 @@ export default function DashboardHome() {
   if (role === 'ADMIN') {
     const kpiCards = [
       { label: 'Peserta Didik', value: stats.siswa, icon: GraduationCap, href: '/dashboard/siswa', desc: 'Siswa aktif terdaftar' },
-      { label: 'Tenaga Pendidik', value: stats.guru, icon: Users, href: '/dashboard/guru', desc: 'Guru & Wali kelas' },
-      { label: 'Kelas', value: stats.kelas, icon: School, href: '/dashboard/akademik', desc: 'Kelas tingkat 7, 8, 9' },
-      { label: 'Mata Pelajaran', value: stats.mapel, icon: BookOpen, href: '/dashboard/akademik', desc: 'Kurikulum standar KKM' },
+      { label: 'Tenaga Pendidik', value: stats.guru, icon: Users, href: '/dashboard/manajemen?tab=guru_mapel', desc: 'Guru Mapel & Wali' },
+      { label: 'Kelas', value: stats.kelas, icon: School, href: '/dashboard/manajemen?tab=struktur', desc: 'Kelas tingkat 7, 8, 9' },
+      { label: 'Mata Pelajaran', value: stats.mapel, icon: BookOpen, href: '/dashboard/manajemen?tab=struktur', desc: 'Kurikulum standar KKM' },
     ];
 
     return (
@@ -100,12 +101,12 @@ export default function DashboardHome() {
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary-subtle border border-primary-border text-primary text-xs font-semibold">
               <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>
-              Sistem Aktif
+              Sistem Aktif ({tahunAjaran || 'T.A. Berjalan'})
             </span>
           </div>
         </div>
 
-        {/* KPI Cards (2 Columns on Mobile, 4 Columns on Large Screen) */}
+        {/* KPI Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {kpiCards.map((kpi, idx) => (
             <Link key={idx} href={kpi.href}>
@@ -129,27 +130,27 @@ export default function DashboardHome() {
         {/* Management & Status Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <section className="bg-card rounded-xl border border-separator p-5 sm:p-6 shadow-sm flex flex-col gap-4">
-            <h2 className="text-base font-semibold text-label">Pintasan Pengelolaan Sistem</h2>
+            <h2 className="text-base font-semibold text-label">Pusat Manajemen Terpadu</h2>
             <div className="grid grid-cols-2 gap-3">
-              <Link href="/dashboard/manajemen" className="p-3.5 rounded-lg border border-separator bg-bg hover:bg-card-subtle transition-colors flex flex-col gap-1.5">
+              <Link href="/dashboard/manajemen?tab=users" className="p-3.5 rounded-lg border border-separator bg-bg hover:bg-card-subtle transition-colors flex flex-col gap-1.5">
                 <ShieldCheck size={20} className="text-accent" />
-                <span className="font-semibold text-sm text-label">Manajemen Akun</span>
-                <span className="text-xs text-label-secondary">Registrasi 5 Role & ID Unik</span>
+                <span className="font-semibold text-sm text-label">Daftar Akun</span>
+                <span className="text-xs text-label-secondary">Reset password & kontrol</span>
               </Link>
-              <Link href="/dashboard/guru" className="p-3.5 rounded-lg border border-separator bg-bg hover:bg-card-subtle transition-colors flex flex-col gap-1.5">
-                <Users size={20} className="text-primary" />
-                <span className="font-semibold text-sm text-label">Data Guru</span>
-                <span className="text-xs text-label-secondary">Manajemen profil & NIP</span>
+              <Link href="/dashboard/manajemen?tab=struktur" className="p-3.5 rounded-lg border border-separator bg-bg hover:bg-card-subtle transition-colors flex flex-col gap-1.5">
+                <School size={20} className="text-primary" />
+                <span className="font-semibold text-sm text-label">Kelas & Mapel</span>
+                <span className="text-xs text-label-secondary">Atur kelas & KKM mapel</span>
+              </Link>
+              <Link href="/dashboard/manajemen?tab=penugasan" className="p-3.5 rounded-lg border border-separator bg-bg hover:bg-card-subtle transition-colors flex flex-col gap-1.5">
+                <Calendar size={20} className="text-primary" />
+                <span className="font-semibold text-sm text-label">Penugasan & TA</span>
+                <span className="text-xs text-label-secondary">Wali & penempatan siswa</span>
               </Link>
               <Link href="/dashboard/siswa" className="p-3.5 rounded-lg border border-separator bg-bg hover:bg-card-subtle transition-colors flex flex-col gap-1.5">
-                <GraduationCap size={20} className="text-primary" />
+                <GraduationCap size={20} className="text-accent" />
                 <span className="font-semibold text-sm text-label">Data Siswa</span>
-                <span className="text-xs text-label-secondary">Penempatan kelas & NISN</span>
-              </Link>
-              <Link href="/dashboard/akademik" className="p-3.5 rounded-lg border border-separator bg-bg hover:bg-card-subtle transition-colors flex flex-col gap-1.5">
-                <School size={20} className="text-accent" />
-                <span className="font-semibold text-sm text-label">Kelas & Mapel</span>
-                <span className="text-xs text-label-secondary">Tingkat 7, 8, 9 & standar KKM</span>
+                <span className="text-xs text-label-secondary">Daftar siswa & tautan ortu</span>
               </Link>
             </div>
           </section>
@@ -158,17 +159,12 @@ export default function DashboardHome() {
             <div>
               <h2 className="text-base font-semibold text-label mb-2">Integritas Standar Penilaian</h2>
               <p className="text-sm text-label-secondary leading-relaxed">
-                Penilaian menggunakan formula pembobotan proporsional (Tugas 40%, UTS 30%, UAS 30%) dengan batas ketuntasan minimal KKM 75.0. RBAC multi-role aktif melindungi validitas input nilai.
+                Kalkulasi Nilai Akhir (NA) siswa menggunakan formula baku Kemendikbudristek: <strong>Tugas (40%) + UTS (30%) + UAS (30%)</strong> dengan standar ambang KKM default 75.0. Seluruh rekaman nilai dan catatan rapor otomatis terikat ke tahun ajaran aktif.
               </p>
             </div>
-            <div className="p-3.5 rounded-lg bg-bg border border-separator flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <CheckCircle2 size={18} className="text-primary shrink-0" />
-                <span className="text-xs sm:text-sm font-medium text-label">Sistem Evaluasi Belajar Terverifikasi</span>
-              </div>
-              <span className="text-xs font-semibold text-primary bg-primary-subtle border border-primary-border px-2.5 py-0.5 rounded-full">
-                Tahun Ajaran Aktif &amp; Terlindungi
-              </span>
+            <div className="pt-3 border-t border-separator/60 flex items-center justify-between text-xs text-label-secondary">
+              <span>Sistem terhubung ke Neon PostgreSQL</span>
+              <span className="font-semibold text-primary">Tahun Aktif: {tahunAjaran || '-'}</span>
             </div>
           </section>
         </div>
@@ -176,128 +172,103 @@ export default function DashboardHome() {
     );
   }
 
-  // ================= 2. GURU WALI VIEW =================
+  // ================= 2. WALI KELAS VIEW =================
   if (role === 'GURU_WALI') {
     const guruData = profile?.guru;
-    const kelasWaliList = guruData?.penugasanWali.length
-      ? guruData.penugasanWali.map((assignment) => assignment.kelas)
-      : guruData?.kelasWali ? [guruData.kelasWali] : [];
-    const kelasWali = kelasWaliList[0];
-    const mapelAjar = guruData?.penugasanMapel.length
-      ? [...new Map(guruData.penugasanMapel.map((assignment) => [assignment.mapel.id, assignment.mapel])).values()]
-      : guruData?.mapel || [];
-
-    return (
-      <div className="flex flex-col gap-6">
-        <div className="bg-card rounded-xl border border-separator p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary-subtle border border-primary-border text-primary">
-                Wali Kelas {kelasWali?.nama || ''}
-              </span>
-            </div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-label">
-              Selamat Datang, {guruData?.nama || 'Bapak/Ibu Wali Kelas'}
-            </h1>
-            <p className="text-sm text-label-secondary mt-1">
-              Pembimbing Akademik & Wali Kelas SMP Al-Hidayah Medan {guruData?.nip && <span className="font-mono text-xs font-medium ml-2 px-2 py-0.5 rounded bg-fill">NIP: {guruData.nip}</span>}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link 
-              href="/dashboard/wali"
-              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary-hover text-white text-sm font-medium transition-colors shadow-sm"
-            >
-              <Award size={16} />
-              <span>Buka Catatan & Rekap Rapor</span>
-            </Link>
-          </div>
-        </div>
-
-        {/* Wali Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-          <div className="bg-card border border-separator rounded-xl p-5 flex flex-col gap-2 shadow-sm">
-            <div className="flex items-center justify-between text-label-secondary">
-              <span className="text-xs font-semibold uppercase tracking-wider">Kelas Binaan</span>
-              <School size={18} className="text-primary" />
-            </div>
-            <span className="text-2xl font-bold text-label">
-              {kelasWali ? `Kelas ${kelasWali.nama}` : 'Belum Ditugaskan'}
-            </span>
-            <span className="text-xs text-label-secondary">
-              {kelasWali ? `Jenjang Tingkat ${kelasWali.tingkat} SMP` : 'Hubungi Administrator'}
-            </span>
-          </div>
-
-          <div className="bg-card border border-separator rounded-xl p-5 flex flex-col gap-2 shadow-sm">
-            <div className="flex items-center justify-between text-label-secondary">
-              <span className="text-xs font-semibold uppercase tracking-wider">Pintasan Siswa</span>
-              <GraduationCap size={18} className="text-accent" />
-            </div>
-            <Link 
-              href="/dashboard/siswa"
-              className="text-lg font-bold text-primary hover:underline flex items-center gap-1.5"
-            >
-              <span>Daftar Siswa Binaan</span>
-              <ArrowRight size={16} />
-            </Link>
-            <span className="text-xs text-label-secondary">Periksa kelengkapan data & orang tua</span>
-          </div>
-
-          <div className="bg-card border border-separator rounded-xl p-5 flex flex-col gap-2 shadow-sm">
-            <div className="flex items-center justify-between text-label-secondary">
-              <span className="text-xs font-semibold uppercase tracking-wider">Tugas Mapel Tambahan</span>
-              <BookOpen size={18} className="text-primary" />
-            </div>
-            <span className="text-2xl font-bold text-label tabular-nums">
-              {mapelAjar.length} Mapel
-            </span>
-            <span className="text-xs text-label-secondary truncate">
-              {mapelAjar.map((m) => m.nama).join(', ') || 'Hanya bertugas sebagai Wali'}
-            </span>
-          </div>
-        </div>
-
-        {/* Guidelines for Homeroom Teacher */}
-        <section className="bg-card rounded-xl border border-separator p-5 sm:p-6 shadow-sm flex flex-col gap-3">
-          <h2 className="text-base font-semibold text-label">Tanggung Jawab Wali Kelas</h2>
-          <p className="text-sm text-label-secondary leading-relaxed">
-            Sebagai wali kelas, Anda bertugas memantau perkembangan belajar peserta didik, mengisi presensi kehadiran (sakit, izin, alfa), mencatat predikat sikap spiritual & sosial, mencatat kegiatan ekstrakurikuler, menentukan keputusan kenaikan kelas, dan mencetak lembar rapor semester resmi berstandar A4.
-          </p>
-          <div className="pt-1 flex items-center gap-3">
-            <Link href="/dashboard/wali" className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline">
-              <span>Buka Menu Rekap & Wali Sekarang</span>
-              <ArrowRight size={16} />
-            </Link>
-          </div>
-        </section>
-      </div>
-    );
-  }
-
-  // ================= 3. GURU MAPEL VIEW (or Legacy GURU) =================
-  if (role === 'GURU_MAPEL' || role === 'GURU') {
-    const guruData = profile?.guru;
-    const mapelAjar = guruData?.penugasanMapel.length
-      ? [...new Map(guruData.penugasanMapel.map((assignment) => [assignment.mapel.id, assignment.mapel])).values()]
-      : guruData?.mapel || [];
+    const kelasWali = guruData?.kelasWali || guruData?.penugasanWali?.[0]?.kelas;
 
     return (
       <div className="flex flex-col gap-6">
         
-        {/* Guru Banner */}
+        {/* Banner Wali */}
         <div className="bg-card rounded-xl border border-separator p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-accent/15 border border-accent/30 text-accent">
-                Guru Mata Pelajaran
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border border-emerald-500/20">
+                Wali Kelas {kelasWali?.nama || ''}
+              </span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-label">
+              Selamat Bertugas, {guruData?.nama || 'Bapak/Ibu Guru'}
+            </h1>
+            <p className="text-sm text-label-secondary mt-1">
+              Pembimbing Akademik Kelas {kelasWali?.nama || 'Binaan'} &bull; Semester {semester} &bull; T.A. {tahunAjaran}
+            </p>
+          </div>
+          <Link 
+            href="/dashboard/wali"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary-hover text-white text-sm font-medium transition-colors shadow-sm"
+          >
+            <Award size={16} />
+            <span>Buka Rekap & Cetak Rapor</span>
+          </Link>
+        </div>
+
+        {/* Action Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Link href="/dashboard/wali" className="bg-card hover:bg-card-subtle border border-separator rounded-xl p-5 shadow-sm transition-colors flex flex-col justify-between gap-3 group">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-label-secondary uppercase tracking-wider">Tugas Wali Kelas</span>
+              <Award size={20} className="text-primary" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-label group-hover:text-primary transition-colors">
+                Rekapitulasi Nilai & Leger Kelas
+              </h3>
+              <p className="text-xs text-label-secondary mt-1 leading-relaxed">
+                Pantau akumulasi nilai seluruh mata pelajaran, input presensi siswa, catatan sikap, dan cetak lembar rapor A4 resmi.
+              </p>
+            </div>
+            <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary mt-1">
+              <span>Buka Panel Leger & Rapor</span>
+              <ArrowRight size={14} />
+            </div>
+          </Link>
+
+          <Link href="/dashboard/nilai" className="bg-card hover:bg-card-subtle border border-separator rounded-xl p-5 shadow-sm transition-colors flex flex-col justify-between gap-3 group">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-label-secondary uppercase tracking-wider">Tugas Mengajar</span>
+              <FileSpreadsheet size={20} className="text-accent" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-label group-hover:text-primary transition-colors">
+                Input Nilai Mata Pelajaran
+              </h3>
+              <p className="text-xs text-label-secondary mt-1 leading-relaxed">
+                Input nilai Tugas (40%), UTS (30%), dan UAS (30%) untuk mata pelajaran yang Anda ampu di kelas binaan maupun kelas lainnya.
+              </p>
+            </div>
+            <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary mt-1">
+              <span>Buka Matriks Input Nilai</span>
+              <ArrowRight size={14} />
+            </div>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // ================= 3. GURU MAPEL VIEW =================
+  if (role === 'GURU' || role === 'GURU_MAPEL') {
+    const guruData = profile?.guru;
+    const mapelAjar = guruData?.mapel || [];
+
+    return (
+      <div className="flex flex-col gap-6">
+        
+        {/* Banner Guru */}
+        <div className="bg-card rounded-xl border border-separator p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary-subtle border border-primary-border text-primary">
+                Tenaga Pendidik
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-label">
               Selamat Datang, {guruData?.nama || 'Bapak/Ibu Guru'}
             </h1>
             <p className="text-sm text-label-secondary mt-1">
-              Pengampu Mata Pelajaran SMP Al-Hidayah Medan {guruData?.nip && <span className="font-mono text-xs font-medium ml-2 px-2 py-0.5 rounded bg-fill">NIP: {guruData.nip}</span>}
+              Portal Penginputan Nilai Peserta Didik SMP Al-Hidayah Medan &bull; T.A. {tahunAjaran}
             </p>
           </div>
           <Link 
@@ -309,41 +280,15 @@ export default function DashboardHome() {
           </Link>
         </div>
 
-        {/* Guru Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          <div className="bg-card border border-separator rounded-xl p-5 flex flex-col gap-2 shadow-sm">
-            <div className="flex items-center justify-between text-label-secondary">
-              <span className="text-xs font-semibold uppercase tracking-wider">Mata Pelajaran yang Diampu</span>
-              <BookOpen size={18} className="text-accent" />
-            </div>
-            <span className="text-2xl font-bold text-label tabular-nums">
-              {mapelAjar.length} Mata Pelajaran
-            </span>
-            <span className="text-xs text-label-secondary truncate">
-              {mapelAjar.map((m) => m.nama).join(', ') || 'Belum ada mapel ditugaskan'}
-            </span>
-          </div>
-
-          <div className="bg-card border border-separator rounded-xl p-5 flex flex-col gap-2 shadow-sm">
-            <div className="flex items-center justify-between text-label-secondary">
-              <span className="text-xs font-semibold uppercase tracking-wider">Hak Akses Penilaian</span>
-              <ShieldCheck size={18} className="text-primary" />
-            </div>
-            <span className="text-sm font-semibold text-label">
-              Terbatas Pada Mapel & Kelas Penugasan
-            </span>
-            <span className="text-xs text-label-secondary">
-              Sistem RBAC memastikan Anda hanya dapat memasukkan nilai untuk siswa dan mapel yang menjadi wewenang Anda.
-            </span>
-          </div>
-        </div>
-
-        {/* Assigned Subjects Matrix */}
+        {/* Subjects Handled */}
         <section className="bg-card rounded-xl border border-separator p-5 sm:p-6 shadow-sm flex flex-col gap-4">
-          <div className="flex items-center justify-between border-b border-separator pb-3">
-            <h2 className="text-base font-semibold text-label">Daftar Penugasan Mengajar Aktif</h2>
+          <div className="flex items-center justify-between border-b border-separator/60 pb-3">
+            <div>
+              <h2 className="text-base font-semibold text-label">Mata Pelajaran yang Diampu</h2>
+              <p className="text-xs text-label-secondary">Klik mapel untuk langsung mengisi penilaian Tugas, UTS, dan UAS</p>
+            </div>
             <Link href="/dashboard/nilai" className="text-xs font-semibold text-primary hover:underline flex items-center gap-1">
-              <span>Buka Matriks Nilai</span>
+              <span>Buka Spreadsheet Nilai</span>
               <ArrowRight size={14} />
             </Link>
           </div>
@@ -355,19 +300,19 @@ export default function DashboardHome() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {mapelAjar.map((mapel) => (
-                <div key={mapel.id} className="p-4 rounded-lg border border-separator bg-bg flex items-center justify-between">
+                <Link
+                  key={mapel.id}
+                  href="/dashboard/nilai"
+                  className="p-4 rounded-xl border border-separator bg-bg hover:bg-card-subtle flex items-center justify-between transition-colors group cursor-pointer"
+                >
                   <div>
-                    <h3 className="font-semibold text-sm text-label">{mapel.nama}</h3>
+                    <h3 className="font-semibold text-sm text-label group-hover:text-primary transition-colors">{mapel.nama}</h3>
                     <span className="text-xs text-label-secondary font-mono">Standar KKM: {mapel.kkm}</span>
                   </div>
-                  <Link 
-                    href={`/dashboard/nilai`}
-                    className="p-2 rounded-lg hover:bg-card-subtle text-primary transition-colors"
-                    title="Input Nilai Mapel Ini"
-                  >
-                    <ArrowRight size={18} />
-                  </Link>
-                </div>
+                  <div className="p-2 rounded-lg bg-primary-subtle text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                    <ArrowRight size={16} />
+                  </div>
+                </Link>
               ))}
             </div>
           )}
@@ -396,58 +341,57 @@ export default function DashboardHome() {
               Selamat Datang, Bapak/Ibu {ortuData?.nama || 'Orang Tua'}
             </h1>
             <p className="text-sm text-label-secondary mt-1">
-              Pantau perkembangan akademik putra/putri Anda di SMP Al-Hidayah Medan
-              {ortuData?.nik && <span className="font-mono text-xs font-medium ml-2 px-2 py-0.5 rounded bg-fill">NIK: {ortuData.nik}</span>}
+              Pantau perkembangan akademik putra/putri Anda secara transparan di SMP Al-Hidayah Medan
             </p>
           </div>
-          <Link 
-            href="/dashboard/rapor"
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary-hover text-white text-sm font-medium transition-colors shadow-sm"
-          >
-            <Award size={16} />
-            <span>Lihat Rapor Anak</span>
-          </Link>
+          {anakList[0] && (
+            <Link 
+              href={`/dashboard/rapor?siswaId=${anakList[0].id}`}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary-hover text-white text-sm font-medium transition-colors shadow-sm"
+            >
+              <Award size={16} />
+              <span>Buka Rapor {anakList[0].nama.split(' ')[0]}</span>
+            </Link>
+          )}
         </div>
 
-        {/* Children Cards */}
+        {/* Children Actionable Cards */}
         <section className="flex flex-col gap-3">
-          <h2 className="text-base font-semibold text-label">Putra / Putri Terdaftar</h2>
+          <h2 className="text-base font-semibold text-label">Putra / Putri Terdaftar ({anakList.length} Siswa)</h2>
           
           {anakList.length === 0 ? (
             <div className="bg-card border border-separator rounded-xl p-6 text-center text-sm text-label-secondary">
-              Belum ada data siswa yang dihubungkan dengan akun Orang Tua ini. Silakan hubungi pihak tata usaha sekolah atau administrator untuk menghubungkan NISN anak Anda.
+              Belum ada data siswa yang dihubungkan dengan akun Orang Tua ini. Silakan hubungi pihak tata usaha sekolah atau administrator untuk menautkan NISN anak Anda.
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {anakList.map((anak) => (
                 <div key={anak.id} className="bg-card border border-separator rounded-xl p-5 flex flex-col justify-between gap-4 shadow-sm">
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-label-secondary">Peserta Didik</span>
-                      <span className="font-mono text-xs bg-fill px-2 py-0.5 rounded border border-separator/60 text-label">
-                        NISN: {anak.nisn}
-                      </span>
+                  <div className="flex items-start gap-3">
+                    <div className="w-11 h-11 rounded-xl bg-primary-subtle border border-primary-border text-primary font-bold text-base flex items-center justify-center shrink-0">
+                      {anak.nama.charAt(0)}
                     </div>
-                    <h3 className="text-lg font-bold text-label mt-1">{anak.nama}</h3>
-                    <div className="mt-2 text-xs text-label-secondary flex flex-col gap-1">
-                      <span>Kelas: <strong className="text-label">{anak.kelas?.nama ? `Kelas ${anak.kelas.nama}` : 'Belum ditentukan'}</strong></span>
-                      <span>Wali Kelas: <strong className="text-label">{anak.kelas?.wali?.nama || '-'}</strong></span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-xs bg-fill px-2 py-0.5 rounded border border-separator/60 text-label">
+                          NISN: {anak.nisn}
+                        </span>
+                      </div>
+                      <h3 className="text-base font-bold text-label truncate mt-1">{anak.nama}</h3>
+                      <div className="mt-1 text-xs text-label-secondary flex flex-col gap-0.5">
+                        <span>Kelas: <strong className="text-label">{anak.kelas?.nama ? `Kelas ${anak.kelas.nama}` : 'Belum ditentukan'}</strong></span>
+                        <span>Wali Kelas: <strong className="text-label">{anak.kelas?.wali?.nama || '-'}</strong></span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 pt-2 border-t border-separator/60">
+                  <div className="flex items-center gap-2 pt-3 border-t border-separator/60">
                     <Link
-                      href="/dashboard/rapor"
-                      className="flex-1 text-center py-2 px-3 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-medium transition-colors"
+                      href={`/dashboard/rapor?siswaId=${anak.id}`}
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-semibold transition-colors shadow-xs"
                     >
-                      Buka Lembar Rapor
-                    </Link>
-                    <Link
-                      href="/dashboard/rapor"
-                      className="inline-flex items-center justify-center p-2 rounded-lg border border-separator bg-bg hover:bg-card-subtle text-label text-xs transition-colors"
-                      title="Beri Catatan Akhir Semester"
-                    >
-                      <MessageSquare size={16} />
+                      <Award size={14} />
+                      <span>Lihat Rapor {anak.nama.split(' ')[0]}</span>
                     </Link>
                   </div>
                 </div>
@@ -457,13 +401,13 @@ export default function DashboardHome() {
         </section>
 
         {/* Feature Guide */}
-        <section className="bg-card rounded-xl border border-separator p-5 sm:p-6 shadow-sm flex flex-col gap-3">
+        <section className="bg-card rounded-xl border border-separator p-5 sm:p-6 shadow-sm flex flex-col gap-2">
           <div className="flex items-center gap-2">
             <HeartHandshake size={20} className="text-primary" />
-            <h2 className="text-base font-semibold text-label">Fitur Catatan Orang Tua di Akhir Semester</h2>
+            <h2 className="text-base font-semibold text-label">Fitur Catatan & Tanggapan Orang Tua</h2>
           </div>
           <p className="text-sm text-label-secondary leading-relaxed">
-            Pada halaman lembar rapor, orang tua dapat memberikan catatan, tanggapan, dan masukan perkembangan anak untuk setiap semester aktif. Catatan ini akan terdokumentasi langsung pada arsip rapor anak dan dapat dibaca oleh wali kelas serta dewan guru.
+            Pada halaman lembar rapor, Anda dapat membaca evaluasi ketuntasan tiap mata pelajaran serta menuliskan catatan atau pesan bimbingan untuk wali kelas dan dewan guru di akhir semester.
           </p>
         </section>
       </div>
@@ -494,9 +438,9 @@ export default function DashboardHome() {
         </div>
         <Link 
           href="/dashboard/rapor"
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary-hover text-white text-sm font-medium transition-colors shadow-sm"
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-primary-hover text-white text-sm font-semibold transition-colors shadow-sm"
         >
-          <Award size={16} />
+          <Award size={18} />
           <span>Buka Rapor Saya</span>
         </Link>
       </div>
@@ -512,7 +456,7 @@ export default function DashboardHome() {
             {siswaData?.kelas?.nama || 'Belum ada kelas'}
           </span>
           <span className="text-xs text-label-secondary">
-            {siswaData?.kelas ? `Tingkat ${siswaData.kelas.tingkat}` : '-'}
+            {siswaData?.kelas ? `Tingkat ${siswaData.kelas.tingkat} SMP Al-Hidayah` : '-'}
           </span>
         </div>
 
@@ -529,33 +473,24 @@ export default function DashboardHome() {
 
         <div className="bg-card border border-separator rounded-xl p-5 flex flex-col gap-2 shadow-sm">
           <div className="flex items-center justify-between text-label-secondary">
-            <span className="text-xs font-semibold uppercase tracking-wider">Dokumen Rapor</span>
-            <Award size={18} className="text-primary" />
+            <span className="text-xs font-semibold uppercase tracking-wider">Tahun Akademik</span>
+            <Calendar size={18} className="text-primary" />
           </div>
-          <Link 
-            href="/dashboard/rapor"
-            className="mt-1 text-center py-2 px-4 rounded-lg bg-primary hover:bg-primary-hover text-white text-sm font-medium transition-colors shadow-sm"
-          >
-            Buka Lembar Rapor
-          </Link>
+          <span className="text-xl font-bold text-label font-mono">
+            {tahunAjaran || '-'}
+          </span>
+          <span className="text-xs text-label-secondary">
+            Semester {semester === 'GANJIL' ? 'Ganjil' : 'Genap'}
+          </span>
         </div>
       </div>
 
       {/* Panduan Transparansi Nilai */}
-      <section className="bg-card rounded-xl border border-separator p-5 sm:p-6 shadow-sm flex flex-col gap-3">
+      <section className="bg-card rounded-xl border border-separator p-5 sm:p-6 shadow-sm flex flex-col gap-2">
         <h2 className="text-base font-semibold text-label">Transparansi Evaluasi Akademik</h2>
         <p className="text-sm text-label-secondary leading-relaxed">
-          Capaian nilai harian/tugas, penilaian tengah semester (UTS), dan penilaian akhir semester (UAS) dihitung secara proporsional. Anda dapat memeriksa ketuntasan batas KKM dan mencetak pratinjau rapor semester resmi berstandar A4.
+          Capaian nilai harian/tugas, penilaian tengah semester (UTS), dan penilaian akhir semester (UAS) dihitung secara proporsional sesuai standar dinas pendidikan. Anda dapat memeriksa ketuntasan KKM dan mencetak pratinjau rapor semester resmi berstandar A4.
         </p>
-        <div className="pt-2">
-          <Link 
-            href="/dashboard/rapor" 
-            className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline"
-          >
-            <span>Buka Rapor Saya Sekarang</span>
-            <ArrowRight size={16} />
-          </Link>
-        </div>
       </section>
     </div>
   );

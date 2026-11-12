@@ -17,10 +17,11 @@ import {
   Plus,
   Trash2,
   Layers,
-  Award,
-  Crown
+  Crown,
+  ArrowRight
 } from 'lucide-react';
 import PrintableRapor, { RaporData } from '../components/PrintableRapor';
+import { useAcademicYear } from '@/lib/AcademicYearContext';
 
 interface SiswaRekap {
   siswaId: string;
@@ -71,16 +72,16 @@ interface MapelSummary {
   guru?: { nama: string } | null;
 }
 
+type ModalTabKey = 'presensi' | 'sikap' | 'ekskul' | 'wali';
+
 export default function WaliKelasPage() {
+  const { semester, tahunAjaran, setSemester, setTahunAjaran, yearOptions } = useAcademicYear();
+
   const [kelasData, setKelasData] = useState<KelasSummary | null>(null);
   const [kelasListAdmin, setKelasListAdmin] = useState<KelasSummary[]>([]);
   const [selectedKelasId, setSelectedKelasId] = useState<string>('');
   const [isWali, setIsWali] = useState<boolean>(true);
   const [userRole, setUserRole] = useState<string>('GURU');
-
-  const [semester, setSemester] = useState<string>('GANJIL');
-  const [tahunAjaran, setTahunAjaran] = useState<string>('');
-  const [yearOptions, setYearOptions] = useState<string[]>([]);
 
   const [rekapList, setRekapList] = useState<SiswaRekap[]>([]);
   const [mapelList, setMapelList] = useState<MapelSummary[]>([]);
@@ -92,7 +93,7 @@ export default function WaliKelasPage() {
   const [errorMsg, setErrorMsg] = useState<string>('');
 
   // Active Tab Modal Catatan
-  const [activeModalTab, setActiveModalTab] = useState<'presensi' | 'sikap' | 'ekskul' | 'wali'>('presensi');
+  const [activeModalTab, setActiveModalTab] = useState<ModalTabKey>('presensi');
 
   // Modal Catatan Rapor
   const [editingSiswa, setEditingSiswa] = useState<SiswaRekap | null>(null);
@@ -127,7 +128,7 @@ export default function WaliKelasPage() {
 
   // Ambil rekapitulasi nilai dan catatan rapor kelas
   const fetchRekap = useCallback(async (kelasId: string, sem: string, thn: string) => {
-    if (!kelasId) return;
+    if (!kelasId || !thn) return;
     setIsLoading(true);
     setErrorMsg('');
     try {
@@ -150,35 +151,31 @@ export default function WaliKelasPage() {
     }
   }, []);
 
-  const fetchKelasBinaan = useCallback(async (requestedYear?: string, selectedSemester = 'GANJIL') => {
+  const fetchKelasBinaan = useCallback(async () => {
+    if (!tahunAjaran) return;
     setIsLoading(true);
     try {
-      const yearsResponse = await apiFetch('/api/master/tahun-ajaran');
-      const years: Array<{ nama: string; aktif: boolean }> = yearsResponse.ok ? await yearsResponse.json() : [];
-      const activeYear = years.find((year) => year.aktif)?.nama || years[0]?.nama;
-      const year = requestedYear || activeYear;
-      if (years.length) setYearOptions(years.map((item) => item.nama));
-      if (year) setTahunAjaran(year);
-      if (!year) throw new Error('Tahun ajaran belum dibuat oleh administrator.');
-
-      const res = await apiFetch(`/api/wali/kelas-binaan?tahunAjaran=${encodeURIComponent(year)}`);
+      const res = await apiFetch(`/api/wali/kelas-binaan?tahunAjaran=${encodeURIComponent(tahunAjaran)}`);
       if (!res.ok) throw new Error('Gagal mengambil data penugasan wali kelas');
       const data = await res.json();
       setUserRole(String(data.role || 'GURU'));
       setIsWali(data.isWali);
 
       if (data.role === 'ADMIN') {
-        setKelasListAdmin(data.kelasList || []);
-        const defaultId = data.kelasList?.[0]?.id;
-        if (defaultId) {
-          setSelectedKelasId(defaultId);
-          await fetchRekap(defaultId, selectedSemester, year);
+        const list = data.kelasList || [];
+        setKelasListAdmin(list);
+        const targetId = selectedKelasId && list.some((k: KelasSummary) => k.id === selectedKelasId) 
+          ? selectedKelasId 
+          : list[0]?.id;
+        if (targetId) {
+          setSelectedKelasId(targetId);
+          await fetchRekap(targetId, semester, tahunAjaran);
         }
       } else if (data.kelas) {
         setKelasListAdmin(data.kelasList || [data.kelas]);
         setKelasData(data.kelas);
         setSelectedKelasId(data.kelas.id);
-        await fetchRekap(data.kelas.id, selectedSemester, year);
+        await fetchRekap(data.kelas.id, semester, tahunAjaran);
       } else {
         setIsWali(false);
       }
@@ -187,40 +184,50 @@ export default function WaliKelasPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [fetchRekap]);
+  }, [tahunAjaran, semester, selectedKelasId, fetchRekap]);
 
   useEffect(() => {
     queueMicrotask(() => { void fetchKelasBinaan(); });
   }, [fetchKelasBinaan]);
 
-  const handleFilterChange = (newSem: string, newThn: string, newKelasId?: string) => {
-    const kId = newKelasId !== undefined ? newKelasId : selectedKelasId;
-    setSemester(newSem);
-    setTahunAjaran(newThn);
-    if (newKelasId !== undefined) setSelectedKelasId(newKelasId);
-    if (newThn !== tahunAjaran) {
-      fetchKelasBinaan(newThn, newSem);
-      return;
-    }
-    fetchRekap(kId, newSem, newThn);
+  const handleClassSelect = (kId: string) => {
+    setSelectedKelasId(kId);
+    void fetchRekap(kId, semester, tahunAjaran);
   };
 
-  const openCatatanModal = (item: SiswaRekap) => {
-    setEditingSiswa(item);
+  // Helper evaluasi status kelengkapan catatan rapor
+  const getCatatanCompleteness = (catatan: SiswaRekap['catatanRapor']): 'lengkap' | 'parsial' | 'kosong' => {
+    if (!catatan) return 'kosong';
+    const hasPresensi = (catatan.sakit ?? 0) > 0 || (catatan.izin ?? 0) > 0 || (catatan.alfa ?? 0) > 0;
+    const hasSikap = !!catatan.sikapSpiritual && !!catatan.sikapSosial;
+    const hasWali = !!catatan.catatanWali && catatan.catatanWali.trim().length > 0;
+
+    const count = (hasPresensi ? 1 : 0) + (hasSikap ? 1 : 0) + (hasWali ? 1 : 0);
+    if (count === 3) return 'lengkap';
+    if (count > 0) return 'parsial';
+    return 'kosong';
+  };
+
+  // Buka Modal Catatan
+  const openCatatanModal = (siswa: SiswaRekap) => {
+    setEditingSiswa(siswa);
     setActiveModalTab('presensi');
-    const existing = item.catatanRapor;
-    if (existing) {
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    const cr = siswa.catatanRapor;
+    if (cr) {
       setFormCatatan({
-        sakit: existing.sakit || 0,
-        izin: existing.izin || 0,
-        alfa: existing.alfa || 0,
-        sikapSpiritual: existing.sikapSpiritual || '',
-        deskripsiSpiritual: existing.deskripsiSpiritual || '',
-        sikapSosial: existing.sikapSosial || '',
-        deskripsiSosial: existing.deskripsiSosial || '',
-        ekskul: Array.isArray(existing.ekskul) ? existing.ekskul : [],
-        catatanWali: existing.catatanWali || '',
-        statusKenaikan: existing.statusKenaikan || ''
+        sakit: cr.sakit || 0,
+        izin: cr.izin || 0,
+        alfa: cr.alfa || 0,
+        sikapSpiritual: cr.sikapSpiritual || '',
+        deskripsiSpiritual: cr.deskripsiSpiritual || '',
+        sikapSosial: cr.sikapSosial || '',
+        deskripsiSosial: cr.deskripsiSosial || '',
+        ekskul: Array.isArray(cr.ekskul) ? [...cr.ekskul] : [],
+        catatanWali: cr.catatanWali || '',
+        statusKenaikan: cr.statusKenaikan || ''
       });
     } else {
       setFormCatatan({
@@ -238,115 +245,162 @@ export default function WaliKelasPage() {
     }
   };
 
-  const handleSaveCatatan = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingSiswa) return;
+  // Handle Simpan Catatan Rapor
+  const handleSaveCatatan = async (e?: React.FormEvent, andClose = false) => {
+    if (e) e.preventDefault();
+    if (!editingSiswa || !selectedKelasId) return;
+
     setIsSavingCatatan(true);
+    setErrorMsg('');
+
     try {
+      const payload = {
+        siswaId: editingSiswa.siswaId,
+        kelasId: selectedKelasId,
+        semester,
+        tahunAjaran,
+        ...formCatatan
+      };
+
       const res = await apiFetch('/api/wali/catatan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          siswaId: editingSiswa.siswaId,
-          semester,
-          tahunAjaran,
-          ...formCatatan
-        })
+        body: JSON.stringify(payload)
       });
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Gagal menyimpan catatan rapor');
-      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal menyimpan catatan rapor');
 
-      setEditingSiswa(null);
       setSuccessMsg(`Catatan rapor untuk ${editingSiswa.nama} berhasil disimpan!`);
       setTimeout(() => setSuccessMsg(''), 3000);
-      fetchRekap(selectedKelasId, semester, tahunAjaran);
+
+      // Perbarui state lokal
+      setRekapList((prev) =>
+        prev.map((item) =>
+          item.siswaId === editingSiswa.siswaId
+            ? { ...item, catatanRapor: data.data }
+            : item
+        )
+      );
+
+      if (andClose) {
+        setEditingSiswa(null);
+      }
     } catch (err: unknown) {
-      setErrorMsg(errorMessage(err, 'Gagal menyimpan catatan rapor.'));
+      setErrorMsg(errorMessage(err, 'Gagal menyimpan catatan.'));
     } finally {
       setIsSavingCatatan(false);
     }
   };
 
+  const handleSaveAndNext = async () => {
+    await handleSaveCatatan(undefined, false);
+    if (activeModalTab === 'presensi') setActiveModalTab('sikap');
+    else if (activeModalTab === 'sikap') setActiveModalTab('ekskul');
+    else if (activeModalTab === 'ekskul') setActiveModalTab('wali');
+  };
+
+  // Manipulasi Ekskul Form
   const handleAddEkskul = () => {
-    setFormCatatan(prev => ({
+    setFormCatatan((prev) => ({
       ...prev,
       ekskul: [...prev.ekskul, { nama: '', predikat: 'A', keterangan: '' }]
     }));
   };
 
+  const handleUpdateEkskul = (index: number, field: keyof EkskulItem, value: string) => {
+    setFormCatatan((prev) => {
+      const updated = [...prev.ekskul];
+      updated[index] = { ...updated[index], [field]: value };
+      return { ...prev, ekskul: updated };
+    });
+  };
+
   const handleRemoveEkskul = (index: number) => {
-    setFormCatatan(prev => ({
+    setFormCatatan((prev) => ({
       ...prev,
       ekskul: prev.ekskul.filter((_, idx) => idx !== index)
     }));
   };
 
-  const handleUpdateEkskul = (index: number, field: string, val: string) => {
-    setFormCatatan(prev => ({
-      ...prev,
-      ekskul: prev.ekskul.map((item, idx) => idx === index ? { ...item, [field]: val } : item)
-    }));
-  };
-
+  // Buka Modal Cetak Rapor
   const handleOpenPrint = async (siswaId: string) => {
     setIsLoadingPrint(true);
+    setErrorMsg('');
     try {
-      const res = await apiFetch(`/api/wali/rapor/${siswaId}?semester=${semester}&tahunAjaran=${encodeURIComponent(tahunAjaran)}`);
-      if (!res.ok) throw new Error('Gagal mengambil lembar rapor siswa');
+      const url = `/api/wali/rapor/${siswaId}?semester=${semester}&tahunAjaran=${encodeURIComponent(tahunAjaran)}`;
+      const res = await apiFetch(url);
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Gagal mengambil data rapor cetak');
+      }
+
       const data = await res.json();
       setPrintData(data);
     } catch (err: unknown) {
-      setErrorMsg(errorMessage(err, 'Gagal membuka pratinjau rapor.'));
+      setErrorMsg(errorMessage(err, 'Gagal mempersiapkan lembar rapor untuk cetak.'));
     } finally {
       setIsLoadingPrint(false);
     }
   };
 
+  // Filtered Siswa List
   const filteredRekap = useMemo(() => {
     if (!searchQuery.trim()) return rekapList;
     const q = searchQuery.toLowerCase();
-    return rekapList.filter(s => s.nama.toLowerCase().includes(q) || s.nisn.includes(q));
+    return rekapList.filter(
+      (s) => s.nama.toLowerCase().includes(q) || s.nisn.toLowerCase().includes(q)
+    );
   }, [rekapList, searchQuery]);
 
+  // Statistik Kelas
   const rataRataKelas = useMemo(() => {
-    return rekapList.length > 0 
-      ? Math.round((rekapList.reduce((acc, curr) => acc + curr.rataRata, 0) / rekapList.length) * 10) / 10
-      : 0;
+    if (rekapList.length === 0) return 0;
+    const sum = rekapList.reduce((acc, curr) => acc + curr.rataRata, 0);
+    return Math.round((sum / rekapList.length) * 10) / 10;
   }, [rekapList]);
 
-  // Top 3 Rank Students
   const topThree = useMemo(() => {
     return [...rekapList].sort((a, b) => a.ranking - b.ranking).slice(0, 3);
   }, [rekapList]);
 
+  // Status kelengkapan tab modal saat ini
+  const tabStatus = useMemo(() => {
+    const presensiDone = formCatatan.sakit > 0 || formCatatan.izin > 0 || formCatatan.alfa > 0;
+    const sikapDone = !!formCatatan.sikapSpiritual && !!formCatatan.sikapSosial;
+    const ekskulDone = formCatatan.ekskul.length > 0;
+    const waliDone = formCatatan.catatanWali.trim().length > 0;
+
+    return { presensi: presensiDone, sikap: sikapDone, ekskul: ekskulDone, wali: waliDone };
+  }, [formCatatan]);
+
   if (!isWali && userRole !== 'ADMIN') {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] text-center p-6 bg-card rounded-xl border border-separator">
-        <div className="w-12 h-12 rounded-full bg-accent/15 text-accent flex items-center justify-center mb-3">
-          <AlertCircle size={24} />
-        </div>
-        <h2 className="text-lg font-bold text-label mb-1">Bukan Wali Kelas</h2>
-        <p className="text-xs sm:text-sm text-label-secondary max-w-sm">
-          Akun Anda saat ini belum ditugaskan sebagai Wali Kelas pada data kelas manapun. Hubungi Administrator/TU sekolah untuk penugasan.
+      <div className="bg-card rounded-xl border border-separator p-8 text-center flex flex-col items-center gap-3">
+        <School size={36} className="text-amber-600" />
+        <h2 className="text-lg font-bold text-label">Bukan Wali Kelas</h2>
+        <p className="text-xs text-label-secondary max-w-md">
+          Akun Anda tidak tercatat sebagai wali kelas aktif pada tahun ajaran ini. Anda dapat menginput nilai pada mata pelajaran yang Anda ampu melalui menu <strong>Input Nilai</strong>.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6">
       
-      {/* Title & Filter Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Header Banner */}
+      <div className="bg-card rounded-xl border border-separator p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-label flex items-center gap-2">
-            <Award className="text-primary" size={24} />
-            <span>Rekapitulasi Kelas & Leger Rapor</span>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="w-2 h-2 rounded-full bg-primary"></span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-primary">Rekapitulasi Wali Kelas</span>
+          </div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-label">
+            Leger Nilai, Catatan & Cetak Rapor
           </h1>
-          <p className="text-xs sm:text-sm text-label-secondary mt-0.5">
+          <p className="text-sm text-label-secondary mt-1">
             Kelas {kelasData?.nama || '-'} &bull; Semester {semester === 'GANJIL' ? 'Ganjil' : 'Genap'} &bull; Tahun Ajaran {tahunAjaran}
           </p>
         </div>
@@ -356,7 +410,7 @@ export default function WaliKelasPage() {
           {(userRole === 'ADMIN' || kelasListAdmin.length > 1) && kelasListAdmin.length > 0 && (
             <select
               value={selectedKelasId}
-              onChange={(e) => handleFilterChange(semester, tahunAjaran, e.target.value)}
+              onChange={(e) => handleClassSelect(e.target.value)}
               className="h-9 px-3 rounded-lg bg-card border border-separator text-label text-xs font-semibold focus:border-primary outline-none cursor-pointer"
             >
               {kelasListAdmin.map(k => (
@@ -367,7 +421,7 @@ export default function WaliKelasPage() {
 
           <select
             value={semester}
-            onChange={(e) => handleFilterChange(e.target.value, tahunAjaran)}
+            onChange={(e) => setSemester(e.target.value)}
             className="h-9 px-3 rounded-lg bg-card border border-separator text-label text-xs font-semibold focus:border-primary outline-none cursor-pointer"
           >
             <option value="GANJIL">Semester Ganjil</option>
@@ -376,15 +430,15 @@ export default function WaliKelasPage() {
 
           <select
             value={tahunAjaran}
-            onChange={(e) => handleFilterChange(semester, e.target.value)}
+            onChange={(e) => setTahunAjaran(e.target.value)}
             className="h-9 px-3 rounded-lg bg-card border border-separator text-label text-xs font-semibold focus:border-primary outline-none cursor-pointer"
           >
-            {yearOptions.map((year) => <option key={year} value={year}>T.A. {year}</option>)}
+            {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
           </select>
 
           <button
             onClick={() => fetchRekap(selectedKelasId, semester, tahunAjaran)}
-            className="p-2 rounded-lg border border-separator bg-card hover:bg-card-subtle text-label-secondary transition-colors"
+            className="p-2 rounded-lg border border-separator bg-card hover:bg-card-subtle text-label-secondary transition-colors cursor-pointer"
             title="Muat Ulang Data"
           >
             <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} />
@@ -394,13 +448,13 @@ export default function WaliKelasPage() {
 
       {/* Notifications */}
       {successMsg && (
-        <div className="p-3 rounded-lg flex items-center gap-2.5 bg-primary-subtle border border-primary-border text-primary text-xs font-medium">
+        <div className="p-3 rounded-lg flex items-center gap-2.5 bg-primary-subtle border border-primary-border text-primary text-xs font-medium animate-in fade-in duration-150">
           <CheckCircle2 size={16} className="shrink-0" />
           <span>{successMsg}</span>
         </div>
       )}
       {errorMsg && (
-        <div className="p-3 rounded-lg flex items-center gap-2.5 bg-[var(--status-fail-bg)] border border-[var(--status-fail-border)] text-[var(--status-fail)] text-xs font-medium">
+        <div className="p-3 rounded-lg flex items-center gap-2.5 bg-[var(--status-fail-bg)] border border-[var(--status-fail-border)] text-[var(--status-fail)] text-xs font-medium animate-in fade-in duration-150">
           <AlertCircle size={16} className="shrink-0" />
           <span>{errorMsg}</span>
         </div>
@@ -489,7 +543,7 @@ export default function WaliKelasPage() {
             <Layers size={14} className="text-accent" />
           </div>
           <span className="text-2xl font-bold tabular-nums text-label">{mapelList.length}</span>
-          <span className="text-[11px] text-label-secondary">Kurikulum Tingkat SMP</span>
+          <span className="text-[11px] text-label-secondary">Kurikulum Terdaftar</span>
         </div>
       </div>
 
@@ -524,7 +578,7 @@ export default function WaliKelasPage() {
                 <th className="px-3 py-3 w-32 font-mono">NISN</th>
                 <th className="px-3 py-3 text-center w-28">Rata-Rata (NA)</th>
                 <th className="px-3 py-3 text-center w-32">Presensi (S/I/A)</th>
-                <th className="px-3 py-3 text-center w-28">Catatan Rapor</th>
+                <th className="px-3 py-3 text-center w-36">Kelengkapan Catatan</th>
                 <th className="px-4 py-3 text-right w-44">Aksi</th>
               </tr>
             </thead>
@@ -541,7 +595,7 @@ export default function WaliKelasPage() {
                   const presensiText = catatan
                     ? `${catatan.sakit}S / ${catatan.izin}I / ${catatan.alfa}A`
                     : '-';
-                  const hasCatatan = !!catatan?.catatanWali;
+                  const completeness = getCatatanCompleteness(catatan);
 
                   return (
                     <tr key={item.siswaId} className="hover:bg-bg/60 transition-colors">
@@ -575,12 +629,21 @@ export default function WaliKelasPage() {
                       </td>
 
                       <td className="px-3 py-2.5 text-center">
-                        {hasCatatan ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-primary-subtle text-primary border border-primary-border font-semibold">
-                            <CheckCircle2 size={12} /> Terisi
+                        {completeness === 'lengkap' ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border border-emerald-500/20 font-semibold">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400"></span>
+                            Lengkap
+                          </span>
+                        ) : completeness === 'parsial' ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20 font-semibold">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                            Parsial
                           </span>
                         ) : (
-                          <span className="text-[11px] text-label-tertiary">Belum Diisi</span>
+                          <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-fill text-label-tertiary border border-separator/50">
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                            Belum Diisi
+                          </span>
                         )}
                       </td>
 
@@ -588,7 +651,7 @@ export default function WaliKelasPage() {
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => openCatatanModal(item)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-separator bg-bg hover:bg-card-subtle text-label text-xs font-medium transition-colors"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-separator bg-bg hover:bg-card-subtle text-label text-xs font-medium transition-colors cursor-pointer"
                             title="Input Presensi, Sikap, Ekskul, dan Catatan Wali"
                           >
                             <Edit3 size={13} />
@@ -598,7 +661,7 @@ export default function WaliKelasPage() {
                           <button
                             onClick={() => handleOpenPrint(item.siswaId)}
                             disabled={isLoadingPrint}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-primary hover:bg-primary-hover text-white text-xs font-medium transition-colors disabled:opacity-50"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-primary hover:bg-primary-hover text-white text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer"
                             title="Cetak Lembar Rapor Siswa"
                           >
                             <Printer size={13} />
@@ -615,9 +678,9 @@ export default function WaliKelasPage() {
         </div>
       </section>
 
-      {/* Modal Tabulasi Catatan Rapor */}
+      {/* Modal Stepped Tabulasi Catatan Rapor */}
       {editingSiswa && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-card w-full max-w-xl rounded-2xl border border-separator shadow-xl p-5 sm:p-6 flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             
             <div className="flex items-center justify-between border-b border-separator pb-3">
@@ -626,72 +689,55 @@ export default function WaliKelasPage() {
                   Catatan Rapor: {editingSiswa.nama}
                 </h2>
                 <p className="text-xs text-label-secondary">
-                  NISN {editingSiswa.nisn} &bull; Kelas {kelasData?.nama} &bull; {semester} {tahunAjaran}
+                  NISN {editingSiswa.nisn} &bull; Kelas {kelasData?.nama} &bull; Semester {semester} {tahunAjaran}
                 </p>
               </div>
               <button 
                 onClick={() => setEditingSiswa(null)}
-                className="p-1.5 rounded-lg hover:bg-fill text-label-secondary transition-colors"
+                className="p-1.5 rounded-lg hover:bg-fill text-label-secondary transition-colors cursor-pointer"
               >
                 <X size={18} />
               </button>
             </div>
 
-            {/* Tab Navigasi Modal */}
-            <div className="flex border-b border-separator text-xs font-semibold gap-1">
-              <button
-                type="button"
-                onClick={() => setActiveModalTab('presensi')}
-                className={`pb-2 px-3 border-b-2 transition-colors ${
-                  activeModalTab === 'presensi' 
-                    ? 'border-primary text-primary' 
-                    : 'border-transparent text-label-secondary hover:text-label'
-                }`}
-              >
-                1. Presensi
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveModalTab('sikap')}
-                className={`pb-2 px-3 border-b-2 transition-colors ${
-                  activeModalTab === 'sikap' 
-                    ? 'border-primary text-primary' 
-                    : 'border-transparent text-label-secondary hover:text-label'
-                }`}
-              >
-                2. Sikap
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveModalTab('ekskul')}
-                className={`pb-2 px-3 border-b-2 transition-colors ${
-                  activeModalTab === 'ekskul' 
-                    ? 'border-primary text-primary' 
-                    : 'border-transparent text-label-secondary hover:text-label'
-                }`}
-              >
-                3. Ekskul
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveModalTab('wali')}
-                className={`pb-2 px-3 border-b-2 transition-colors ${
-                  activeModalTab === 'wali' 
-                    ? 'border-primary text-primary' 
-                    : 'border-transparent text-label-secondary hover:text-label'
-                }`}
-              >
-                4. Bimbingan & Kenaikan
-              </button>
+            {/* Stepped Tab Navigasi Modal dengan Progress Indicators */}
+            <div className="grid grid-cols-4 gap-1.5 border-b border-separator pb-3">
+              {(
+                [
+                  { key: 'presensi', label: '1. Presensi', done: tabStatus.presensi },
+                  { key: 'sikap', label: '2. Sikap', done: tabStatus.sikap },
+                  { key: 'ekskul', label: '3. Ekskul', done: tabStatus.ekskul },
+                  { key: 'wali', label: '4. Bimbingan', done: tabStatus.wali },
+                ] as const
+              ).map((tab) => {
+                const isActive = activeModalTab === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setActiveModalTab(tab.key)}
+                    className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-primary text-white shadow-xs'
+                        : tab.done
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200/50'
+                        : 'bg-fill/60 text-label-secondary hover:text-label hover:bg-fill'
+                    }`}
+                  >
+                    {tab.done && !isActive && <CheckCircle2 size={13} className="text-emerald-600" />}
+                    <span className="truncate">{tab.label}</span>
+                  </button>
+                );
+              })}
             </div>
 
-            <form onSubmit={handleSaveCatatan} className="flex flex-col gap-4">
+            <form onSubmit={(e) => handleSaveCatatan(e, true)} className="flex flex-col gap-4">
               
               {/* TAB 1: PRESENSI */}
               {activeModalTab === 'presensi' && (
-                <div className="flex flex-col gap-3 py-2">
+                <div className="flex flex-col gap-3 py-1 animate-in fade-in duration-150">
                   <span className="text-xs text-label-secondary">
-                    Rekap ketidakhadiran siswa selama 1 semester berjalan:
+                    Rekapitulasi hari ketidakhadiran siswa selama satu semester berjalan:
                   </span>
                   <div className="grid grid-cols-3 gap-3">
                     <div className="flex flex-col gap-1">
@@ -701,7 +747,7 @@ export default function WaliKelasPage() {
                         min={0}
                         value={formCatatan.sakit}
                         onChange={(e) => setFormCatatan({ ...formCatatan, sakit: Number(e.target.value) })}
-                        className="h-9 px-3 rounded-lg bg-bg border border-separator text-label font-mono text-center text-sm focus:outline-none focus:border-primary"
+                        className="h-10 px-3 rounded-lg bg-bg border border-separator text-label font-mono text-center text-sm focus:outline-none focus:border-primary"
                       />
                     </div>
                     <div className="flex flex-col gap-1">
@@ -711,7 +757,7 @@ export default function WaliKelasPage() {
                         min={0}
                         value={formCatatan.izin}
                         onChange={(e) => setFormCatatan({ ...formCatatan, izin: Number(e.target.value) })}
-                        className="h-9 px-3 rounded-lg bg-bg border border-separator text-label font-mono text-center text-sm focus:outline-none focus:border-primary"
+                        className="h-10 px-3 rounded-lg bg-bg border border-separator text-label font-mono text-center text-sm focus:outline-none focus:border-primary"
                       />
                     </div>
                     <div className="flex flex-col gap-1">
@@ -721,7 +767,7 @@ export default function WaliKelasPage() {
                         min={0}
                         value={formCatatan.alfa}
                         onChange={(e) => setFormCatatan({ ...formCatatan, alfa: Number(e.target.value) })}
-                        className="h-9 px-3 rounded-lg bg-bg border border-separator text-label font-mono text-center text-sm focus:outline-none focus:border-primary"
+                        className="h-10 px-3 rounded-lg bg-bg border border-separator text-label font-mono text-center text-sm focus:outline-none focus:border-primary"
                       />
                     </div>
                   </div>
@@ -730,7 +776,7 @@ export default function WaliKelasPage() {
 
               {/* TAB 2: SIKAP */}
               {activeModalTab === 'sikap' && (
-                <div className="flex flex-col gap-3 py-2">
+                <div className="flex flex-col gap-3 py-1 animate-in fade-in duration-150">
                   {/* Spiritual */}
                   <div className="flex flex-col gap-1.5 p-3 rounded-lg bg-bg border border-separator">
                     <div className="flex items-center justify-between">
@@ -785,7 +831,7 @@ export default function WaliKelasPage() {
 
               {/* TAB 3: EKSTRAKURIKULER */}
               {activeModalTab === 'ekskul' && (
-                <div className="flex flex-col gap-3 py-2">
+                <div className="flex flex-col gap-3 py-1 animate-in fade-in duration-150">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-label-secondary">
                       Daftar kegiatan pengembangan diri / ekstrakurikuler:
@@ -793,7 +839,7 @@ export default function WaliKelasPage() {
                     <button
                       type="button"
                       onClick={handleAddEkskul}
-                      className="text-xs font-semibold text-primary flex items-center gap-1 hover:underline"
+                      className="text-xs font-semibold text-primary flex items-center gap-1 hover:underline cursor-pointer"
                     >
                       <Plus size={14} /> Tambah Kegiatan
                     </button>
@@ -833,7 +879,7 @@ export default function WaliKelasPage() {
                         <button
                           type="button"
                           onClick={() => handleRemoveEkskul(idx)}
-                          className="p-1.5 text-[var(--status-fail)] hover:bg-[var(--status-fail-bg)] rounded-md transition-colors"
+                          className="p-1.5 text-[var(--status-fail)] hover:bg-[var(--status-fail-bg)] rounded-md transition-colors cursor-pointer"
                           title="Hapus"
                         >
                           <Trash2 size={15} />
@@ -846,7 +892,7 @@ export default function WaliKelasPage() {
 
               {/* TAB 4: CATATAN WALI & KENAIKAN */}
               {activeModalTab === 'wali' && (
-                <div className="flex flex-col gap-3 py-2">
+                <div className="flex flex-col gap-3 py-1 animate-in fade-in duration-150">
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-semibold text-label">
                       Catatan Bimbingan & Motivasi Wali Kelas
@@ -878,22 +924,47 @@ export default function WaliKelasPage() {
                 </div>
               )}
 
-              {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-separator">
+              {/* Action Buttons dengan Simpan & Lanjut */}
+              <div className="flex items-center justify-between gap-2 pt-3 border-t border-separator">
                 <button
                   type="button"
                   onClick={() => setEditingSiswa(null)}
-                  className="h-9 px-4 rounded-lg text-xs font-semibold text-label-secondary hover:bg-fill transition-colors"
+                  className="h-9 px-4 rounded-lg text-xs font-semibold text-label-secondary hover:bg-fill transition-colors cursor-pointer"
                 >
-                  Batal
+                  Tutup
                 </button>
-                <button
-                  type="submit"
-                  disabled={isSavingCatatan}
-                  className="h-9 px-4 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-medium transition-colors disabled:opacity-50"
-                >
-                  {isSavingCatatan ? 'Menyimpan...' : 'Simpan Catatan Rapor'}
-                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSaveCatatan(undefined, false)}
+                    disabled={isSavingCatatan}
+                    className="h-9 px-3.5 rounded-lg border border-separator hover:bg-card-subtle text-xs font-semibold text-label transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    Simpan Saja
+                  </button>
+
+                  {activeModalTab !== 'wali' ? (
+                    <button
+                      type="button"
+                      onClick={handleSaveAndNext}
+                      disabled={isSavingCatatan}
+                      className="h-9 px-4 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer"
+                    >
+                      <span>Simpan & Lanjut</span>
+                      <ArrowRight size={14} />
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={isSavingCatatan}
+                      className="h-9 px-4 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer"
+                    >
+                      <CheckCircle2 size={14} />
+                      <span>Selesai & Tutup</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
             </form>
