@@ -1,6 +1,7 @@
 /* frontend/src/app/global.css */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Lora:ital,wght@0,400..700;1,400..700&family=Nunito:ital,wght@0,300..800;1,300..800&display=swap');
 @import "tailwindcss";
+@source "../../src";
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
