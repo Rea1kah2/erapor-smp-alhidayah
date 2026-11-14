@@ -5,10 +5,9 @@ import { verifyToken, requireRole } from '../middleware/auth.js';
 const router = Router();
 
 router.use(verifyToken);
-router.use(requireRole(['ORTU']));
 
-// Rute untuk orang tua
-router.get('/anak', getAnakSaya);
-router.patch('/catatan/:siswaId', updateCatatanOrtu);
+// Rute untuk orang tua (ADMIN juga diizinkan mengelola catatan orang tua dari pratinjau rapor)
+router.get('/anak', requireRole(['ORTU']), getAnakSaya);
+router.patch('/catatan/:siswaId', requireRole(['ORTU', 'ADMIN']), updateCatatanOrtu);
 
 export default router;

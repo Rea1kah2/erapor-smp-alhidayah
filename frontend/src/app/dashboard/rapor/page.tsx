@@ -3,17 +3,14 @@
 import { apiFetch } from "@/lib/api";
 import { errorMessage } from '@/lib/errors';
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { 
-  Award, 
-  CheckCircle2, 
-  AlertCircle, 
-  TrendingUp, 
-  RefreshCw, 
-  Printer, 
-  Heart, 
-  Smile, 
-  Activity, 
-  Send 
+import {
+  CheckCircle2,
+  AlertCircle,
+  RefreshCw,
+  Printer,
+  Heart,
+  Smile,
+  Send
 } from 'lucide-react';
 import PrintableRapor, { RaporData } from '../components/PrintableRapor';
 import { useAcademicYear } from '@/lib/AcademicYearContext';
@@ -294,15 +291,13 @@ export default function RaporSayaPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      
       {/* Header Halaman */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-5 border-b border-separator">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-label flex items-center gap-2">
-            <Award className="text-primary" size={24} />
-            <span>Transparansi Hasil Belajar & Rapor</span>
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-label">
+            Transparansi Hasil Belajar & Rapor
           </h1>
-          <p className="text-xs sm:text-sm text-label-secondary mt-0.5">
+          <p className="text-xs sm:text-sm text-label-secondary mt-1">
             Laporan evaluasi capaian kompetensi nilai akademik dan presensi peserta didik
           </p>
         </div>
@@ -310,10 +305,10 @@ export default function RaporSayaPage() {
         {/* Filter Bar */}
         <div className="flex flex-wrap items-center gap-2">
           {siswaList.length > 1 && (
-            <select 
-              value={targetSiswaId || ''} 
-              onChange={(e) => setTargetSiswaId(e.target.value)} 
-              className="h-9 px-3 rounded-lg bg-card border border-separator text-label text-xs font-semibold focus:border-primary outline-none cursor-pointer"
+            <select
+              value={targetSiswaId || ''}
+              onChange={(e) => setTargetSiswaId(e.target.value)}
+              className="h-9 px-3 rounded-lg bg-card border border-separator text-label text-xs font-medium focus:border-primary outline-none cursor-pointer"
             >
               {siswaList.map((siswa) => (
                 <option key={siswa.id} value={siswa.id}>
@@ -326,7 +321,7 @@ export default function RaporSayaPage() {
           <select
             value={semester}
             onChange={(e) => setSemester(e.target.value)}
-            className="h-9 px-3 rounded-lg bg-card border border-separator text-label text-xs font-semibold focus:border-primary outline-none cursor-pointer"
+            className="h-9 px-3 rounded-lg bg-card border border-separator text-label text-xs font-medium focus:border-primary outline-none cursor-pointer"
           >
             <option value="GANJIL">Semester Ganjil</option>
             <option value="GENAP">Semester Genap</option>
@@ -335,7 +330,7 @@ export default function RaporSayaPage() {
           <select
             value={tahunAjaran}
             onChange={(e) => setTahunAjaran(e.target.value)}
-            className="h-9 px-3 rounded-lg bg-card border border-separator text-label text-xs font-semibold focus:border-primary outline-none cursor-pointer"
+            className="h-9 px-3 rounded-lg bg-card border border-separator text-label text-xs font-medium focus:border-primary outline-none cursor-pointer"
           >
             {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
           </select>
@@ -343,7 +338,7 @@ export default function RaporSayaPage() {
           <button
             onClick={handlePrintRapor}
             disabled={isLoadingPrint || groupedByMapel.length === 0}
-            className="h-9 px-3.5 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-medium flex items-center gap-1.5 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+            className="h-9 px-3.5 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
           >
             <Printer size={15} />
             <span>{isLoadingPrint ? 'Menyiapkan...' : 'Cetak Rapor A4'}</span>
@@ -352,79 +347,65 @@ export default function RaporSayaPage() {
       </div>
 
       {errorMsg && (
-        <div className="p-3 rounded-lg flex items-center gap-2.5 bg-[var(--status-fail-bg)] text-[var(--status-fail)] border border-[var(--status-fail-border)] text-xs font-medium animate-in fade-in duration-150">
+        <div className="p-3 rounded-lg flex items-center gap-2.5 bg-[var(--status-fail-bg)] text-[var(--status-fail)] border border-[var(--status-fail-border)] text-xs font-medium">
           <AlertCircle size={16} className="shrink-0" />
           <p>{errorMsg}</p>
         </div>
       )}
 
-      {/* KPI Cards Ringkasan */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-card border border-separator rounded-xl p-3.5 flex flex-col gap-1 shadow-sm">
-          <div className="flex items-center justify-between text-label-secondary">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Rata-Rata Nilai</span>
-            <TrendingUp size={14} className="text-accent" />
-          </div>
-          <span className="text-2xl font-bold tabular-nums text-label">{stats.rataRata}</span>
-          <span className="text-[11px] text-label-secondary">Skala Nilai 0 - 100</span>
+      {/* KPI Typographic Strip */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-separator border border-separator rounded-xl overflow-hidden">
+        <div className="bg-card p-4 flex flex-col gap-1">
+          <span className="text-[13px] font-medium text-label-secondary">Rata-rata nilai</span>
+          <span className="text-2xl font-semibold num-tabular text-label">{stats.rataRata}</span>
+          <span className="text-xs text-label-secondary">Skala nilai 0 - 100</span>
         </div>
 
-        <div className="bg-card border border-separator rounded-xl p-3.5 flex flex-col gap-1 shadow-sm">
-          <div className="flex items-center justify-between text-label-secondary">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Mata Pelajaran</span>
-            <Award size={14} className="text-primary" />
-          </div>
-          <span className="text-2xl font-bold tabular-nums text-label">
+        <div className="bg-card p-4 flex flex-col gap-1">
+          <span className="text-[13px] font-medium text-label-secondary">Mata pelajaran</span>
+          <span className="text-2xl font-semibold num-tabular text-label">
             {stats.scoredCount} <span className="text-sm font-normal text-label-secondary">/ {stats.totalMapel}</span>
           </span>
-          <span className="text-[11px] text-label-secondary">Mapel yang sudah dinilai</span>
+          <span className="text-xs text-label-secondary">Mapel sudah dinilai</span>
         </div>
 
-        <div className="bg-card border border-separator rounded-xl p-3.5 flex flex-col gap-1 shadow-sm">
-          <div className="flex items-center justify-between text-label-secondary">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Ketuntasan KKM</span>
-            <CheckCircle2 size={14} className="text-primary" />
-          </div>
-          <span className="text-2xl font-bold tabular-nums text-primary">{stats.tuntasCount}</span>
-          <span className="text-[11px] text-label-secondary">Mapel tuntas batas KKM</span>
+        <div className="bg-card p-4 flex flex-col gap-1">
+          <span className="text-[13px] font-medium text-label-secondary">Ketuntasan KKM</span>
+          <span className="text-2xl font-semibold num-tabular text-primary">{stats.tuntasCount}</span>
+          <span className="text-xs text-label-secondary">Mapel tuntas KKM</span>
         </div>
 
-        <div className="bg-card border border-separator rounded-xl p-3.5 flex flex-col gap-1 shadow-sm">
-          <div className="flex items-center justify-between text-label-secondary">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Presensi Semester</span>
-            <Activity size={14} className="text-accent" />
-          </div>
-          <span className="text-sm font-mono font-bold text-label mt-1">
-            {catatanRapor ? `${catatanRapor.sakit} Sakit &bull; ${catatanRapor.izin} Izin &bull; ${catatanRapor.alfa} Alfa` : 'Belum Ada Data'}
+        <div className="bg-card p-4 flex flex-col gap-1">
+          <span className="text-[13px] font-medium text-label-secondary">Presensi semester</span>
+          <span className="text-sm font-semibold num-tabular text-label mt-1">
+            {catatanRapor ? `${catatanRapor.sakit} Sakit \u2022 ${catatanRapor.izin} Izin \u2022 ${catatanRapor.alfa} Alfa` : 'Belum ada data'}
           </span>
-          <span className="text-[11px] text-label-secondary">Rekapitulasi Kehadiran</span>
+          <span className="text-xs text-label-secondary">Rekapitulasi kehadiran</span>
         </div>
       </div>
 
       {/* Tabel Nilai Rapor */}
-      <section className="bg-card rounded-xl border border-separator shadow-sm overflow-hidden flex flex-col">
-        <div className="p-4 border-b border-separator flex items-center justify-between bg-bg/50">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-sm text-label">
-              Nilai Akademik {currentSiswa ? `(${currentSiswa.nama})` : ''}
-            </span>
-          </div>
-          <span className="text-xs text-label-secondary">
-            Semester {semester === 'GANJIL' ? 'Ganjil' : 'Genap'} &bull; T.A. {tahunAjaran}
+      <section className="bg-card rounded-xl border border-separator overflow-hidden flex flex-col">
+        <div className="p-4 border-b border-separator flex items-center justify-between bg-fill/30">
+          <span className="font-semibold text-sm text-label">
+            Nilai Akademik {currentSiswa ? `(${currentSiswa.nama})` : ''}
+          </span>
+          <span className="text-xs text-label-secondary font-id">
+            Semester {semester === 'GANJIL' ? 'Ganjil' : 'Genap'} &middot; {tahunAjaran}
           </span>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[680px]">
             <thead>
-              <tr className="bg-fill/60 text-xs font-semibold text-label-secondary uppercase tracking-wider border-b border-separator">
+              <tr className="bg-fill/50 text-xs font-medium text-label-secondary border-b border-separator">
                 <th className="px-4 py-3 w-12 text-center">No</th>
                 <th className="px-4 py-3">Mata Pelajaran</th>
-                <th className="px-3 py-3 text-center w-20">KKM</th>
-                <th className="px-3 py-3 text-center w-24">Tugas (40%)</th>
-                <th className="px-3 py-3 text-center w-24">UTS (30%)</th>
-                <th className="px-3 py-3 text-center w-24">UAS (30%)</th>
-                <th className="px-3 py-3 text-center w-28">Nilai Akhir</th>
+                <th className="px-3 py-3 text-right w-20">KKM</th>
+                <th className="px-3 py-3 text-right w-24">Tugas (40%)</th>
+                <th className="px-3 py-3 text-right w-24">UTS (30%)</th>
+                <th className="px-3 py-3 text-right w-24">UAS (30%)</th>
+                <th className="px-3 py-3 text-right w-28">Nilai Akhir</th>
                 <th className="px-3 py-3 text-center w-20">Predikat</th>
                 <th className="px-4 py-3 text-center w-28">Keterangan</th>
               </tr>
@@ -447,26 +428,26 @@ export default function RaporSayaPage() {
                 </tr>
               ) : (
                 groupedByMapel.map((item, idx) => (
-                  <tr key={item.mapel.id} className="hover:bg-card-subtle/50 transition-colors">
-                    <td className="px-4 py-3 text-center text-xs text-label-tertiary tabular-nums">
+                  <tr key={item.mapel.id} className="hover:bg-card-subtle transition-colors">
+                    <td className="px-4 py-3 text-center text-xs text-label-tertiary num-tabular">
                       {idx + 1}
                     </td>
                     <td className="px-4 py-3 font-semibold text-label">
                       {item.mapel.nama}
                     </td>
-                    <td className="px-3 py-3 text-center font-mono text-xs text-label-secondary">
+                    <td className="px-3 py-3 text-right num-tabular text-xs text-label-secondary">
                       {item.mapel.kkm}
                     </td>
-                    <td className="px-3 py-3 text-center font-mono text-xs tabular-nums text-label">
+                    <td className="px-3 py-3 text-right num-tabular text-xs text-label">
                       {item.tugas !== null ? item.tugas : '-'}
                     </td>
-                    <td className="px-3 py-3 text-center font-mono text-xs tabular-nums text-label">
+                    <td className="px-3 py-3 text-right num-tabular text-xs text-label">
                       {item.uts !== null ? item.uts : '-'}
                     </td>
-                    <td className="px-3 py-3 text-center font-mono text-xs tabular-nums text-label">
+                    <td className="px-3 py-3 text-right num-tabular text-xs text-label">
                       {item.uas !== null ? item.uas : '-'}
                     </td>
-                    <td className="px-3 py-3 text-center font-mono font-bold text-sm tabular-nums">
+                    <td className="px-3 py-3 text-right num-tabular font-semibold text-sm">
                       {item.finalScore !== null ? (
                         <span className={item.passed ? 'text-primary' : 'text-[var(--status-fail)]'}>
                           {item.finalScore.toFixed(1)}
@@ -475,16 +456,16 @@ export default function RaporSayaPage() {
                         <span className="text-label-tertiary">-</span>
                       )}
                     </td>
-                    <td className="px-3 py-3 text-center font-bold text-xs">
+                    <td className="px-3 py-3 text-center font-semibold text-xs">
                       {item.predikat !== '-' ? (
                         <span
-                          className={`inline-block w-6 h-6 rounded-md text-center leading-6 text-xs font-bold ${
+                          className={`inline-block w-6 h-6 rounded-md text-center leading-6 text-xs font-semibold ${
                             item.predikat === 'A'
                               ? 'bg-primary-subtle text-primary border border-primary-border'
                               : item.predikat === 'B'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800/50'
                               : item.predikat === 'C'
-                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800/50'
                               : 'bg-[var(--status-fail-bg)] text-[var(--status-fail)] border border-[var(--status-fail-border)]'
                           }`}
                         >
@@ -497,10 +478,10 @@ export default function RaporSayaPage() {
                     <td className="px-4 py-3 text-center">
                       {item.finalScore !== null ? (
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                          className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium ${
                             item.passed
-                              ? 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border border-emerald-500/20'
-                              : 'bg-red-500/10 text-red-700 dark:text-red-300 border border-red-500/20'
+                              ? 'bg-primary-subtle text-primary border border-primary-border'
+                              : 'bg-[var(--status-fail-bg)] text-[var(--status-fail)] border border-[var(--status-fail-border)]'
                           }`}
                         >
                           {item.passed ? 'Tuntas' : 'Remedial'}
@@ -517,49 +498,47 @@ export default function RaporSayaPage() {
         </div>
       </section>
 
-      {/* Catatan Tambahan (Sikap, Ekskul, Bimbingan & Catatan Ortu) */}
+      {/* Catatan Tambahan */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Sikap & Bimbingan Wali */}
-        <section className="bg-card rounded-xl border border-separator p-5 shadow-sm flex flex-col gap-3">
+        <section className="bg-card rounded-xl border border-separator p-5 flex flex-col gap-3">
           <div className="flex items-center gap-2 border-b border-separator pb-2.5">
-            <Smile size={18} className="text-primary" />
+            <Smile size={17} className="text-primary" />
             <h2 className="font-semibold text-sm text-label">Catatan Perkembangan & Sikap</h2>
           </div>
 
           <div className="flex flex-col gap-2.5 text-xs">
             <div>
               <span className="font-semibold text-label-secondary block mb-0.5">Sikap Spiritual:</span>
-              <p className="text-label bg-fill/60 p-2.5 rounded-lg border border-separator/40 leading-relaxed">
+              <p className="text-label bg-fill/50 p-2.5 rounded-lg border border-separator leading-relaxed">
                 {catatanRapor?.deskripsiSpiritual || 'Belum ada catatan sikap spiritual dari wali kelas.'}
               </p>
             </div>
 
             <div>
               <span className="font-semibold text-label-secondary block mb-0.5">Sikap Sosial:</span>
-              <p className="text-label bg-fill/60 p-2.5 rounded-lg border border-separator/40 leading-relaxed">
+              <p className="text-label bg-fill/50 p-2.5 rounded-lg border border-separator leading-relaxed">
                 {catatanRapor?.deskripsiSosial || 'Belum ada catatan sikap sosial dari wali kelas.'}
               </p>
             </div>
 
             <div>
               <span className="font-semibold text-label-secondary block mb-0.5">Catatan Bimbingan Wali Kelas:</span>
-              <p className="text-label bg-primary-subtle/50 p-2.5 rounded-lg border border-primary-border/40 leading-relaxed font-medium">
+              <p className="text-label bg-primary-subtle p-2.5 rounded-lg border border-primary-border leading-relaxed font-medium">
                 {catatanRapor?.catatanWali || 'Belum ada catatan motivasi dari wali kelas.'}
               </p>
             </div>
           </div>
         </section>
 
-        {/* Form Respon & Catatan Orang Tua */}
-        <section className="bg-card rounded-xl border border-separator p-5 shadow-sm flex flex-col gap-3">
+        <section className="bg-card rounded-xl border border-separator p-5 flex flex-col gap-3">
           <div className="flex items-center gap-2 border-b border-separator pb-2.5">
-            <Heart size={18} className="text-accent" />
+            <Heart size={17} className="text-accent" />
             <h2 className="font-semibold text-sm text-label">Respon & Catatan Orang Tua</h2>
           </div>
 
           {saveOrtuNoteSuccess && (
-            <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-xs font-medium flex items-center gap-2">
-              <CheckCircle2 size={14} className="shrink-0 text-emerald-600" />
+            <div className="p-2.5 rounded-lg bg-primary-subtle border border-primary-border text-primary text-xs font-medium flex items-center gap-2">
+              <CheckCircle2 size={14} className="shrink-0" />
               <span>{saveOrtuNoteSuccess}</span>
             </div>
           )}
@@ -587,7 +566,7 @@ export default function RaporSayaPage() {
                 type="button"
                 onClick={handleSaveCatatanOrtu}
                 disabled={isSavingOrtuNote || currentCatatanOrtu === (catatanRapor?.catatanOrtu || '')}
-                className="h-8.5 px-4 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
+                className="h-8.5 px-4 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
               >
                 {isSavingOrtuNote ? (
                   <>
@@ -608,12 +587,11 @@ export default function RaporSayaPage() {
 
       {/* Modal Print Preview Rapor */}
       {printData && (
-        <PrintableRapor 
-          data={printData} 
-          onClose={() => setPrintData(null)} 
+        <PrintableRapor
+          data={printData}
+          onClose={() => setPrintData(null)}
         />
       )}
-
     </div>
   );
 }

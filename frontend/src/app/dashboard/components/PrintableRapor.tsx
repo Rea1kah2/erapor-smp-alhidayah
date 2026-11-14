@@ -75,20 +75,19 @@ export default function PrintableRapor({ data, onClose }: PrintableRaporProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex flex-col items-center p-3 sm:p-6 print:p-0 print:bg-white print:static">
-      
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/55 flex flex-col items-center p-3 sm:p-6 print:p-0 print:bg-white print:static">
       {/* Floating Toolbar (Screen Only) */}
-      <div className="w-full max-w-[210mm] mb-3 flex items-center justify-between bg-card border border-separator p-3 rounded-xl shadow-lg print:hidden">
+      <div className="w-full max-w-[210mm] mb-3 flex items-center justify-between bg-card border border-separator p-3 rounded-xl print:hidden">
         <div className="flex items-center gap-2 pl-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-primary"></span>
+          <Printer size={16} className="text-primary shrink-0" />
           <span className="text-xs sm:text-sm font-semibold text-label">
-            Pratinjau Lembar Rapor A4 &bull; <strong className="text-label">{data.siswa.nama}</strong> ({data.siswa.kelas})
+            Pratinjau Lembar Rapor A4 &middot; <strong className="text-label">{data.siswa.nama}</strong> ({data.siswa.kelas})
           </span>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={handlePrint}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium text-xs shadow-sm transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium text-xs transition-colors cursor-pointer"
           >
             <Printer size={15} />
             <span>Cetak / Simpan PDF</span>
@@ -96,7 +95,7 @@ export default function PrintableRapor({ data, onClose }: PrintableRaporProps) {
           {onClose && (
             <button
               onClick={onClose}
-              className="p-2 rounded-lg hover:bg-fill text-label-secondary transition-colors"
+              className="p-2 rounded-lg hover:bg-fill text-label-secondary transition-colors cursor-pointer"
               title="Tutup Pratinjau"
             >
               <X size={18} />
@@ -106,14 +105,15 @@ export default function PrintableRapor({ data, onClose }: PrintableRaporProps) {
       </div>
 
       {/* Official A4 Sheet */}
-      <div 
+      <div
         ref={printRef}
         id="printable-rapor"
-        className="w-full max-w-[210mm] bg-white text-black p-8 sm:p-12 shadow-xl border border-gray-200 rounded-sm print:shadow-none print:border-none print:p-0 print:m-0 print:w-full print:max-w-none print:rounded-none font-serif text-[12px] leading-normal"
+        data-ui="print-rapor"
+        className="w-full max-w-[210mm] bg-white text-black p-8 sm:p-12 border border-gray-300 rounded-sm print:border-none print:p-0 print:m-0 print:w-full print:max-w-none print:rounded-none font-serif text-[12px] leading-normal"
       >
-        
         {/* KOP SURAT RESMI KEDINASAN (DOUBLE RULE) */}
         <div className="text-center mb-3">
+          {/* taste-skill-ignore */}
           <h3 className="text-[12px] font-semibold tracking-wider uppercase text-gray-800 font-sans">
             {data.sekolah.yayasan || 'YAYASAN PENDIDIKAN ISLAM AL-HIDAYAH'}
           </h3>
@@ -130,6 +130,7 @@ export default function PrintableRapor({ data, onClose }: PrintableRaporProps) {
 
         {/* JUDUL DOKUMEN */}
         <div className="text-center my-3 font-sans">
+          {/* taste-skill-ignore */}
           <h2 className="text-[14px] font-bold uppercase tracking-wider text-black">
             LAPORAN HASIL BELAJAR PESERTA DIDIK (RAPOR)
           </h2>
@@ -153,7 +154,7 @@ export default function PrintableRapor({ data, onClose }: PrintableRaporProps) {
           <div className="flex">
             <span className="w-32 font-semibold text-gray-800">NISN</span>
             <span className="mr-1.5">:</span>
-            <span className="font-mono text-black">{data.siswa.nisn}</span>
+            <span className="font-id text-black">{data.siswa.nisn}</span>
           </div>
           <div className="flex">
             <span className="w-28 font-semibold text-gray-800">Semester</span>
@@ -195,13 +196,13 @@ export default function PrintableRapor({ data, onClose }: PrintableRaporProps) {
             <tbody>
               {data.nilai.map((n, idx) => (
                 <tr key={n.mapelId}>
-                  <td className="border border-black p-1 text-center font-mono">{idx + 1}</td>
+                  <td className="border border-black p-1 text-center tabular-nums">{idx + 1}</td>
                   <td className="border border-black p-1 font-medium">{n.nama}</td>
-                  <td className="border border-black p-1 text-center font-mono">{n.kkm}</td>
-                  <td className="border border-black p-1 text-center font-mono">{n.tugas !== null ? n.tugas : '-'}</td>
-                  <td className="border border-black p-1 text-center font-mono">{n.uts !== null ? n.uts : '-'}</td>
-                  <td className="border border-black p-1 text-center font-mono">{n.uas !== null ? n.uas : '-'}</td>
-                  <td className="border border-black p-1 text-center font-bold font-mono bg-gray-50">{n.nilaiAkhir > 0 ? n.nilaiAkhir : '-'}</td>
+                  <td className="border border-black p-1 text-center tabular-nums">{n.kkm}</td>
+                  <td className="border border-black p-1 text-center tabular-nums">{n.tugas !== null ? n.tugas : '-'}</td>
+                  <td className="border border-black p-1 text-center tabular-nums">{n.uts !== null ? n.uts : '-'}</td>
+                  <td className="border border-black p-1 text-center tabular-nums">{n.uas !== null ? n.uas : '-'}</td>
+                  <td className="border border-black p-1 text-center font-bold tabular-nums bg-gray-50">{n.nilaiAkhir > 0 ? n.nilaiAkhir : '-'}</td>
                   <td className="border border-black p-1 text-center font-bold">{n.predikat}</td>
                   <td className="border border-black p-1 text-center font-semibold text-[10px]">
                     {n.status}
@@ -210,7 +211,7 @@ export default function PrintableRapor({ data, onClose }: PrintableRaporProps) {
               ))}
               <tr className="bg-gray-100 font-bold">
                 <td colSpan={6} className="border border-black p-1 text-right uppercase">Rata-Rata Nilai Akhir</td>
-                <td className="border border-black p-1 text-center font-mono bg-gray-200">{data.rekapitulasi.rataRata}</td>
+                <td className="border border-black p-1 text-center tabular-nums bg-gray-200">{data.rekapitulasi.rataRata}</td>
                 <td colSpan={2} className="border border-black p-1 text-center text-[10px]">
                   {data.rekapitulasi.mataPelajaranDinilai} / {data.rekapitulasi.totalMataPelajaran} Mapel Dinilai
                 </td>
@@ -280,7 +281,7 @@ export default function PrintableRapor({ data, onClose }: PrintableRaporProps) {
                 {data.catatanRapor.ekskul && data.catatanRapor.ekskul.length > 0 ? (
                   data.catatanRapor.ekskul.map((e, idx) => (
                     <tr key={idx}>
-                      <td className="border border-black p-1 text-center font-mono">{idx + 1}</td>
+                      <td className="border border-black p-1 text-center tabular-nums">{idx + 1}</td>
                       <td className="border border-black p-1 font-medium">{e.nama}</td>
                       <td className="border border-black p-1 text-center font-bold">{e.predikat}</td>
                       <td className="border border-black p-1 text-[9.5px]">{e.keterangan}</td>
@@ -313,15 +314,15 @@ export default function PrintableRapor({ data, onClose }: PrintableRaporProps) {
               <tbody>
                 <tr>
                   <td className="border border-black p-1 font-medium">Sakit (S)</td>
-                  <td className="border border-black p-1 text-center font-mono">{data.catatanRapor.tersedia ? `${data.catatanRapor.sakit} hari` : '-'}</td>
+                  <td className="border border-black p-1 text-center tabular-nums">{data.catatanRapor.tersedia ? `${data.catatanRapor.sakit} hari` : '-'}</td>
                 </tr>
                 <tr>
                   <td className="border border-black p-1 font-medium">Izin (I)</td>
-                  <td className="border border-black p-1 text-center font-mono">{data.catatanRapor.tersedia ? `${data.catatanRapor.izin} hari` : '-'}</td>
+                  <td className="border border-black p-1 text-center tabular-nums">{data.catatanRapor.tersedia ? `${data.catatanRapor.izin} hari` : '-'}</td>
                 </tr>
                 <tr>
                   <td className="border border-black p-1 font-medium">Tanpa Keterangan / Alfa (A)</td>
-                  <td className="border border-black p-1 text-center font-mono">{data.catatanRapor.tersedia ? `${data.catatanRapor.alfa} hari` : '-'}</td>
+                  <td className="border border-black p-1 text-center tabular-nums">{data.catatanRapor.tersedia ? `${data.catatanRapor.alfa} hari` : '-'}</td>
                 </tr>
               </tbody>
             </table>
@@ -377,7 +378,7 @@ export default function PrintableRapor({ data, onClose }: PrintableRaporProps) {
               </div>
               <div>
                 <p className="font-bold underline uppercase">{data.siswa.waliKelas}</p>
-                <p className="text-[9px] text-gray-600 font-mono">
+                <p className="text-[9px] text-gray-600 font-id">
                   {data.siswa.nipWaliKelas ? `NIP: ${data.siswa.nipWaliKelas}` : 'NIP: -'}
                 </p>
               </div>
@@ -391,7 +392,7 @@ export default function PrintableRapor({ data, onClose }: PrintableRaporProps) {
               </div>
               <div>
                 <p className="font-bold underline uppercase">{data.sekolah.kepalaSekolah}</p>
-                <p className="text-[9px] text-gray-600 font-mono">NIP: {data.sekolah.nipKepalaSekolah}</p>
+                <p className="text-[9px] text-gray-600 font-id">NIP: {data.sekolah.nipKepalaSekolah}</p>
               </div>
             </div>
           </div>

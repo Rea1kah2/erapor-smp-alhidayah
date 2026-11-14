@@ -22,6 +22,7 @@ router.post('/register/guru-mapel', registerGuruMapel);
 router.post('/register/guru-wali', registerGuruWali);
 router.post('/register/ortu', registerOrtu);
 router.patch('/users/:id/reset-password', resetUserPassword);
+router.put('/users/:id/reset-password', resetUserPassword);
 router.delete('/users/:id', deleteUser);
 
 export default router;

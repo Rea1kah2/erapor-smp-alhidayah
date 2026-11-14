@@ -9,8 +9,8 @@ import { assertUniqueUserIdentifier } from '../lib/authValidation.js';
 export const createGuru = async (req: Request, res: Response) => {
     try {
         const { nama, nip, email, password } = req.body;
-        if (typeof nama !== 'string' || !nama.trim() || typeof email !== 'string' || !email.trim() || typeof password !== 'string' || password.length < 12 || typeof nip !== 'string' || !nip.trim()) {
-            return res.status(400).json({ error: 'Nama, NIP, email, dan kata sandi minimal 12 karakter wajib diisi.' });
+        if (typeof nama !== 'string' || !nama.trim() || typeof email !== 'string' || !email.trim() || typeof password !== 'string' || password.length < 6 || typeof nip !== 'string' || !nip.trim()) {
+            return res.status(400).json({ error: 'Nama, NIP, email, dan kata sandi minimal 6 karakter wajib diisi.' });
         }
         const normalizedEmail = email.trim().toLowerCase();
         const cleanNip = nip.trim();
@@ -25,7 +25,7 @@ export const createGuru = async (req: Request, res: Response) => {
             return res.status(409).json({ error: uniqueCheck.error });
         }
 
-        const hashedPassword = await bcrypt.hash(password, 12);
+        const hashedPassword = await bcrypt.hash(password, 10);
         const guruRole = (req.body.role === 'GURU_WALI' ? 'GURU_WALI' : 'GURU_MAPEL');
 
         const result = await prisma.$transaction(async (tx) => {
@@ -71,7 +71,7 @@ export const updateGuru = async (req: Request, res: Response) => {
         if (nama !== undefined && (typeof nama !== 'string' || !nama.trim())) return res.status(400).json({ error: 'Nama guru tidak boleh kosong.' });
         if (email !== undefined && (typeof email !== 'string' || !email.trim())) return res.status(400).json({ error: 'Email tidak boleh kosong.' });
         if (nip !== undefined && nip !== null && nip !== '' && typeof nip !== 'string') return res.status(400).json({ error: 'NIP tidak valid.' });
-        if (password !== undefined && password !== '' && (typeof password !== 'string' || password.length < 12)) return res.status(400).json({ error: 'Kata sandi baru minimal 12 karakter.' });
+        if (password !== undefined && password !== '' && (typeof password !== 'string' || password.length < 6)) return res.status(400).json({ error: 'Kata sandi baru minimal 6 karakter.' });
 
         // Validasi keunikan jika email atau NIP berubah
         const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : undefined;
@@ -162,8 +162,8 @@ export const deleteGuru = async (req: Request, res: Response) => {
 export const createSiswa = async (req: Request, res: Response) => {
     try {
         const { nama, nisn, email, password, kelasId } = req.body;
-        if (typeof nama !== 'string' || !nama.trim() || typeof email !== 'string' || !email.trim() || typeof password !== 'string' || password.length < 12 || typeof nisn !== 'string' || !/^\d{10}$/.test(nisn)) {
-            return res.status(400).json({ error: 'Nama, email, NISN 10 digit, dan kata sandi minimal 12 karakter wajib diisi.' });
+        if (typeof nama !== 'string' || !nama.trim() || typeof email !== 'string' || !email.trim() || typeof password !== 'string' || password.length < 6 || typeof nisn !== 'string' || !/^\d{10}$/.test(nisn)) {
+            return res.status(400).json({ error: 'Nama, email, NISN 10 digit, dan kata sandi minimal 6 karakter wajib diisi.' });
         }
         const normalizedEmail = email.trim().toLowerCase();
         const cleanNisn = nisn.trim();
@@ -186,7 +186,7 @@ export const createSiswa = async (req: Request, res: Response) => {
             }
         }
 
-        const hashedPassword = await bcrypt.hash(password, 12);
+        const hashedPassword = await bcrypt.hash(password, 10);
 
         const result = await prisma.$transaction(async (tx) => {
             const user = await tx.user.create({
@@ -268,7 +268,7 @@ export const updateSiswa = async (req: Request, res: Response) => {
         if (nisn !== undefined && (typeof nisn !== 'string' || !/^\d{10}$/.test(nisn))) return res.status(400).json({ error: 'NISN harus terdiri dari 10 digit.' });
         if (email !== undefined && (typeof email !== 'string' || !email.trim())) return res.status(400).json({ error: 'Email tidak boleh kosong.' });
         if (kelasId !== undefined && kelasId !== null && typeof kelasId !== 'string') return res.status(400).json({ error: 'Kelas tidak valid.' });
-        if (password !== undefined && password !== '' && (typeof password !== 'string' || password.length < 12)) return res.status(400).json({ error: 'Kata sandi baru minimal 12 karakter.' });
+        if (password !== undefined && password !== '' && (typeof password !== 'string' || password.length < 6)) return res.status(400).json({ error: 'Kata sandi baru minimal 6 karakter.' });
 
         const year = req.body.tahunAjaran
             ? await prisma.tahunAjaran.findUnique({ where: { nama: String(req.body.tahunAjaran) } })
@@ -788,11 +788,23 @@ export const assignSiswaToClass = async (req: Request, res: Response) => {
 
 export const createOrtu = async (req: Request, res: Response) => {
     const { nama, email, password, siswaIds, nik } = req.body;
-    if (typeof nama !== 'string' || !nama.trim() || typeof email !== 'string' || !email.trim() || typeof password !== 'string' || password.length < 12 || !Array.isArray(siswaIds) || siswaIds.length === 0 || !siswaIds.every((id) => typeof id === 'string') || typeof nik !== 'string' || !/^\d{16}$/.test(nik.trim())) {
-        return res.status(400).json({ error: 'Nama, NIK KTP 16 digit, email, kata sandi minimal 12 karakter, dan minimal satu siswa wajib diisi.' });
+    if (
+        typeof nama !== 'string' ||
+        !nama.trim() ||
+        typeof password !== 'string' ||
+        password.length < 6 ||
+        !Array.isArray(siswaIds) ||
+        siswaIds.length === 0 ||
+        !siswaIds.every((id) => typeof id === 'string') ||
+        typeof nik !== 'string' ||
+        !/^\d{16}$/.test(nik.trim())
+    ) {
+        return res.status(400).json({ error: 'Nama, NIK KTP 16 digit, kata sandi minimal 6 karakter, dan minimal satu siswa wajib diisi.' });
     }
     const cleanNik = nik.trim();
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = typeof email === 'string' && email.trim()
+        ? email.trim().toLowerCase()
+        : `${cleanNik}@alhidayah.sch.id`;
 
     // Validasi keunikan absolut di seluruh sistem (anti-kloning orang tua)
     const uniqueCheck = await assertUniqueUserIdentifier({
@@ -803,14 +815,14 @@ export const createOrtu = async (req: Request, res: Response) => {
     if (!uniqueCheck.ok) {
         return res.status(409).json({ error: uniqueCheck.error });
     }
-    const hashedPassword = await bcrypt.hash(password, 12);
+    const hashedPassword = await bcrypt.hash(password, 10);
     try {
         const parent = await prisma.$transaction(async (tx) => {
             const students = await tx.siswa.findMany({ where: { id: { in: siswaIds } }, select: { id: true, ortuId: true } });
             if (students.length !== new Set(siswaIds).size || students.some((student) => student.ortuId)) {
                 throw new Error('Satu atau lebih siswa tidak ditemukan atau sudah terhubung ke akun orang tua.');
             }
-            const user = await tx.user.create({ data: { email: email.trim().toLowerCase(), password: hashedPassword, role: 'ORTU' } });
+            const user = await tx.user.create({ data: { email: normalizedEmail, password: hashedPassword, role: 'ORTU' } });
             const ortu = await tx.ortu.create({ data: { nama: nama.trim(), nik: cleanNik, userId: user.id } });
             await tx.siswa.updateMany({ where: { id: { in: siswaIds } }, data: { ortuId: ortu.id } });
             return { id: ortu.id, nama: ortu.nama, nik: ortu.nik, email: user.email, siswaTerhubung: students.length };

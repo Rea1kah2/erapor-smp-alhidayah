@@ -3,13 +3,13 @@
 import { ReactNode, useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { 
-  LayoutDashboard, 
-  GraduationCap, 
-  FileSpreadsheet, 
+import {
+  LayoutDashboard,
+  GraduationCap,
+  FileSpreadsheet,
   Award,
-  LogOut, 
-  PanelLeftClose, 
+  LogOut,
+  PanelLeftClose,
   PanelLeftOpen,
   Sun,
   Moon,
@@ -47,22 +47,18 @@ function DashboardContent({ children }: { children: ReactNode }) {
           setUserRole(role);
           setUserEmail(String(profile.user?.email || ''));
           localStorage.setItem('siakad_role', role);
-          try {
-            document.documentElement.setAttribute('data-role', role);
-          } catch {}
           setIsClient(true);
         }
       })
       .catch(() => {
         localStorage.removeItem('siakad_token');
         localStorage.removeItem('siakad_role');
-        try {
-          document.documentElement.removeAttribute('data-role');
-        } catch {}
         // eslint-disable-next-line @next/next/no-location-assign-relative-destination
         window.location.href = '/';
       });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [router]);
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -73,9 +69,6 @@ function DashboardContent({ children }: { children: ReactNode }) {
     } catch {}
     localStorage.removeItem('siakad_token');
     localStorage.removeItem('siakad_role');
-    try {
-      document.documentElement.removeAttribute('data-role');
-    } catch {}
     setShowLogoutModal(false);
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = '/';
@@ -85,173 +78,167 @@ function DashboardContent({ children }: { children: ReactNode }) {
     setShowLogoutModal(true);
   };
 
-  // Navigasi dinamis berbasis hak akses role
-  // Catatan:
-  // - Data Guru dihapus (dilebur ke Manajemen Akun)
-  // - Akademik dihapus dari menu navigasi (dilebur ke tab di Manajemen Akun)
-  // - Rekap & Wali hanya untuk ADMIN dan GURU_WALI (disembunyikan dari GURU biasa)
   const navItems = useMemo(() => {
     const items = [
-      { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'GURU', 'GURU_MAPEL', 'GURU_WALI', 'SISWA', 'ORTU'] },
-      { name: 'Manajemen Akun', href: '/dashboard/manajemen', icon: ShieldCheck, roles: ['ADMIN'] },
+      { name: 'Ringkasan', href: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'GURU', 'GURU_MAPEL', 'GURU_WALI', 'SISWA', 'ORTU'] },
+      { name: 'Manajemen Sistem', href: '/dashboard/manajemen', icon: ShieldCheck, roles: ['ADMIN'] },
       { name: 'Data Siswa', href: '/dashboard/siswa', icon: GraduationCap, roles: ['ADMIN', 'GURU_MAPEL', 'GURU_WALI', 'GURU'] },
       { name: 'Input Nilai', href: '/dashboard/nilai', icon: FileSpreadsheet, roles: ['ADMIN', 'GURU_MAPEL', 'GURU_WALI', 'GURU'] },
-      { name: 'Rekap & Wali', href: '/dashboard/wali', icon: Award, roles: ['ADMIN', 'GURU_WALI'] },
-      { name: 'Rapor Siswa', href: '/dashboard/rapor', icon: Award, roles: ['SISWA', 'ORTU'] },
+      { name: 'Leger & Wali Kelas', href: '/dashboard/wali', icon: Award, roles: ['ADMIN', 'GURU_WALI'] },
+      { name: 'Rapor Siswa', href: '/dashboard/rapor', icon: Award, roles: ['SISWA', 'ORTU'] }
     ];
 
-    return items.filter(item => item.roles.includes(userRole));
+    return items.filter((item) => item.roles.includes(userRole));
   }, [userRole]);
 
-  // Dapatkan judul halaman aktif
   const activePageTitle = useMemo(() => {
-    const current = navItems.find(item => item.href === pathname);
+    const current = navItems.find((item) => item.href === pathname);
     return current ? current.name : 'E-Rapor SMP Al-Hidayah';
   }, [navItems, pathname]);
 
   if (!isClient) {
     return (
-      <div className="min-h-screen bg-bg flex items-center justify-center">
-        <div className="w-8 h-8 border-3 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+      <div className="min-h-[100dvh] bg-bg flex flex-col md:flex-row">
+        <div className="hidden md:block w-[236px] shrink-0 p-4">
+          <div className="h-9 rounded-lg bg-fill mb-6" />
+          <div className="flex flex-col gap-2">
+            <div className="h-8 rounded-lg bg-fill" />
+            <div className="h-8 rounded-lg bg-fill/70" />
+            <div className="h-8 rounded-lg bg-fill/50" />
+          </div>
+        </div>
+        <div className="flex-1 flex flex-col min-w-0">
+          <div className="h-12 px-6 flex items-center justify-between">
+            <div className="w-36 h-4 rounded bg-fill" />
+            <div className="w-48 h-7 rounded-lg bg-fill" />
+          </div>
+          <div className="flex-1 bg-bg-secondary md:mr-2 md:mb-2 md:rounded-2xl border border-separator p-6">
+            <div className="w-64 h-6 rounded bg-fill mb-3" />
+            <div className="w-96 h-4 rounded bg-fill/70 mb-6" />
+            <div className="h-24 rounded-xl bg-fill/50 border border-separator" />
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-bg text-label flex flex-col md:flex-row transition-colors duration-200">
-      
-      {/* Sidebar Desktop */}
-      <aside 
-        className={`hidden md:flex flex-col h-[calc(100vh-32px)] sticky top-4 glass m-4 rounded-2xl p-3 z-40 transition-all duration-200 ease-in-out shrink-0 shadow-sm ${
-          isCollapsed ? 'w-[76px]' : 'w-[260px]'
+    <div className="min-h-[100dvh] bg-bg text-label flex flex-col md:flex-row transition-colors duration-150">
+      {/* Sidebar Desktop (L-Frame Chrome) */}
+      <aside
+        className={`hidden md:flex flex-col h-[100dvh] sticky top-0 py-3.5 px-3 z-40 transition-[width] duration-200 ease-out shrink-0 print:hidden ${
+          isCollapsed ? 'w-[70px]' : 'w-[236px]'
         }`}
       >
-        {/* Header Sidebar */}
-        <div className={`p-2 mb-3 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} border-b border-separator/60 pb-3`}>
+        {/* Product Mark & School Identity */}
+        <div className={`px-1.5 mb-5 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} min-h-[38px]`}>
           {!isCollapsed && (
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center shrink-0">
-                <School size={18} strokeWidth={2.2} />
+                <School size={17} strokeWidth={2} />
               </div>
               <div className="overflow-hidden">
-                <h2 className="text-sm font-bold tracking-tight text-label whitespace-nowrap">
-                  SMP AL-HIDAYAH
-                </h2>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0"></span>
-                  <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
-                    {formatRoleLabel(userRole)}
-                  </span>
-                </div>
+                <p className="text-sm font-semibold text-label truncate leading-tight">
+                  SMP Al-Hidayah
+                </p>
+                <p className="text-xs text-label-secondary truncate leading-tight">
+                  {formatRoleLabel(userRole)}
+                </p>
               </div>
             </div>
           )}
 
-          <button 
+          <button
             onClick={() => setIsCollapsed(!isCollapsed)}
             className="p-1.5 rounded-lg hover:bg-fill text-label-secondary transition-colors shrink-0 cursor-pointer"
             aria-label={isCollapsed ? 'Perlebar Sidebar' : 'Ciutkan Sidebar'}
-            title={isCollapsed ? 'Perlebar' : 'Ciutkan'}
+            title={isCollapsed ? 'Perlebar Navigasi' : 'Ciutkan Navigasi'}
           >
-            {isCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+            {isCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
           </button>
         </div>
 
-        {/* Menu Navigasi */}
-        <nav className="flex-1 flex flex-col gap-1 overflow-y-auto pr-0.5">
+        {/* Navigation Links */}
+        <nav className="flex-1 flex flex-col gap-1 overflow-y-auto" aria-label="Navigasi Utama">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             return (
-              <Link 
-                key={item.name} 
+              <Link
+                key={item.name}
                 href={item.href}
-                className={`flex items-center h-10 px-3 rounded-lg transition-colors text-sm ${
-                  isCollapsed ? 'justify-center' : 'gap-3'
+                className={`flex items-center h-9 px-2.5 rounded-lg transition-colors duration-150 text-sm ${
+                  isCollapsed ? 'justify-center' : 'gap-2.5'
                 } ${
-                  isActive 
-                    ? 'bg-primary text-white font-medium shadow-sm' 
+                  isActive
+                    ? 'bg-bg-secondary border border-separator text-primary font-medium'
                     : 'text-label-secondary hover:text-label hover:bg-fill font-normal'
                 }`}
                 title={isCollapsed ? item.name : undefined}
               >
-                <item.icon size={18} strokeWidth={isActive ? 2.2 : 1.75} className="shrink-0" aria-hidden="true" />
-                
-                <span className={`whitespace-nowrap overflow-hidden transition-all duration-200 ${
-                  isCollapsed ? 'w-0 opacity-0' : 'w-full opacity-100'
-                }`}>
-                  {item.name}
-                </span>
+                <item.icon size={16} strokeWidth={isActive ? 2 : 1.75} className="shrink-0" aria-hidden="true" />
+                {!isCollapsed && <span className="truncate">{item.name}</span>}
               </Link>
             );
           })}
         </nav>
 
-        {/* Logout Action */}
-        <div className="mt-auto pt-2 border-t border-separator/60">
-          <button 
+        {/* Bottom Utility: Logout */}
+        <div className="mt-auto pt-3 border-t border-separator">
+          <button
             onClick={handleLogout}
-            className={`w-full flex items-center h-10 px-3 rounded-lg text-[var(--status-fail)] hover:bg-[var(--status-fail-bg)] transition-colors text-sm cursor-pointer ${
-              isCollapsed ? 'justify-center' : 'gap-3'
+            className={`w-full flex items-center h-9 px-2.5 rounded-lg text-[var(--status-fail)] hover:bg-[var(--status-fail-bg)] transition-colors text-sm cursor-pointer ${
+              isCollapsed ? 'justify-center' : 'gap-2.5'
             }`}
-            title={isCollapsed ? 'Keluar' : undefined}
+            title={isCollapsed ? 'Keluar dari Sistem' : undefined}
           >
-            <LogOut size={18} strokeWidth={1.75} className="shrink-0" />
-            <span className={`whitespace-nowrap overflow-hidden transition-all duration-200 font-medium ${
-              isCollapsed ? 'w-0 opacity-0' : 'w-full opacity-100'
-            }`}>
-              Keluar
-            </span>
+            <LogOut size={16} strokeWidth={1.75} className="shrink-0" />
+            {!isCollapsed && <span className="font-medium">Keluar</span>}
           </button>
         </div>
       </aside>
 
-      {/* Area Konten Utama */}
+      {/* Main Column */}
       <div className="flex-1 flex flex-col min-w-0">
-        
-        {/* Top Header Bar Terintegrasi */}
-        <header className="h-14 border-b border-separator/60 px-4 sm:px-6 flex items-center justify-between bg-card/60 backdrop-blur-sm sticky top-0 z-30">
-          <div className="flex items-center gap-2">
-            {/* Hamburger Button for Mobile Drawer */}
+        {/* Integrated 48px Chrome Topbar */}
+        <header className="h-12 px-4 sm:px-6 flex items-center justify-between bg-bg sticky top-0 z-30 print:hidden">
+          <div className="flex items-center gap-2 min-w-0">
             <button
               onClick={() => setIsMobileDrawerOpen(true)}
-              className="md:hidden p-2 -ml-1.5 rounded-lg border border-separator text-label hover:bg-fill transition-colors cursor-pointer"
+              className="md:hidden p-1.5 -ml-1 rounded-lg border border-separator bg-bg-secondary text-label hover:bg-fill transition-colors cursor-pointer"
               title="Buka Navigasi"
               aria-label="Buka Navigasi"
             >
-              <Menu size={18} />
+              <Menu size={17} />
             </button>
 
-            <span className="text-xs font-semibold uppercase tracking-wider text-label-tertiary hidden sm:inline">
-              E-Rapor SMP Al-Hidayah
+            <span className="text-xs text-label-secondary hidden sm:inline">
+              E-Rapor Al-Hidayah
             </span>
-            <span className="text-label-tertiary hidden sm:inline">&bull;</span>
-            <span className="text-sm font-semibold text-label truncate max-w-[150px] sm:max-w-none">
+            <span className="text-label-tertiary hidden sm:inline">/</span>
+            <span className="text-sm font-medium text-label truncate">
               {activePageTitle}
             </span>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Context Global Semester & Tahun Ajaran (Non-Admin & Multi-role) */}
+          <div className="flex items-center gap-2 sm:gap-2.5">
             {!isYearLoading && (
-              <div className="flex items-center gap-1.5 bg-fill/60 p-1 rounded-xl border border-separator/60">
-                <div className="hidden lg:flex items-center gap-1 pl-1 text-[11px] font-semibold text-label-tertiary">
-                  <Calendar size={13} className="text-primary" />
-                </div>
+              <div className="flex items-center gap-1.5 bg-bg-secondary px-1.5 py-0.5 rounded-lg border border-separator">
+                <Calendar size={13} className="text-label-secondary hidden lg:inline ml-1" />
                 <select
                   value={semester}
                   onChange={(e) => setSemester(e.target.value)}
-                  className="h-7 px-2 rounded-lg bg-card text-label text-xs font-medium border border-separator/50 focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                  className="h-7 px-1.5 rounded bg-transparent text-label text-xs font-medium focus:outline-none cursor-pointer"
                   title="Pilih Semester"
                   aria-label="Semester"
                 >
                   <option value="GANJIL">Ganjil</option>
                   <option value="GENAP">Genap</option>
                 </select>
-
+                <span className="text-separator">|</span>
                 <select
                   value={tahunAjaran}
                   onChange={(e) => setTahunAjaran(e.target.value)}
-                  className="h-7 px-2 rounded-lg bg-card text-label text-xs font-mono border border-separator/50 focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                  className="h-7 px-1.5 rounded bg-transparent text-label text-xs font-id focus:outline-none cursor-pointer"
                   title="Pilih Tahun Ajaran"
                   aria-label="Tahun Ajaran"
                 >
@@ -264,30 +251,25 @@ function DashboardContent({ children }: { children: ReactNode }) {
               </div>
             )}
 
-            {/* Theme Toggle (Dark/Light) */}
             <button
               onClick={toggleTheme}
-              className="p-1.5 sm:p-2 rounded-lg border border-separator hover:bg-fill text-label-secondary transition-colors cursor-pointer"
+              className="h-8 w-8 rounded-lg border border-separator bg-bg-secondary hover:bg-card-subtle text-label-secondary flex items-center justify-center transition-colors cursor-pointer"
               title={theme === 'dark' ? 'Ganti ke Mode Terang' : 'Ganti ke Mode Gelap'}
               aria-label="Toggle Tema"
             >
-              {theme === 'dark' ? (
-                <Sun size={16} className="text-amber-400" />
-              ) : (
-                <Moon size={16} className="text-slate-600" />
-              )}
+              {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
             </button>
 
-            {/* User Chip */}
-            <div className="flex items-center gap-2 pl-2 border-l border-separator/60">
-              <div className="w-7 h-7 rounded-full bg-primary-subtle border border-primary-border text-primary font-bold text-xs flex items-center justify-center">
+            {/* User Identity */}
+            <div className="flex items-center gap-2 pl-2 border-l border-separator">
+              <div className="w-7 h-7 rounded-full bg-primary-subtle border border-primary-border text-primary font-semibold text-xs flex items-center justify-center shrink-0">
                 {userEmail ? userEmail.charAt(0).toUpperCase() : 'U'}
               </div>
-              <div className="hidden sm:flex flex-col">
-                <span className="text-xs font-medium text-label leading-tight truncate max-w-[130px]">
+              <div className="hidden lg:flex flex-col">
+                <span className="text-xs font-medium text-label leading-tight truncate max-w-[140px]">
                   {userEmail}
                 </span>
-                <span className="text-[10px] text-label-secondary leading-tight">
+                <span className="text-[11px] text-label-secondary leading-tight">
                   {formatRoleLabel(userRole)}
                 </span>
               </div>
@@ -295,37 +277,36 @@ function DashboardContent({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        {/* Konten Halaman */}
-        <main className="flex-1 p-4 sm:p-6 max-w-7xl w-full mx-auto">
-          {children}
-        </main>
+        {/* White Working Sheet (Inset 8px from right and bottom on desktop) */}
+        <div className="flex-1 bg-bg-secondary md:mr-2 md:mb-2 rounded-none md:rounded-2xl border-t md:border border-separator print:border-none print:m-0 print:rounded-none">
+          <main className="p-4 sm:p-6 max-w-[1260px] w-full mx-auto">
+            {children}
+          </main>
+        </div>
       </div>
 
       {/* Mobile Slide-Over Drawer Navigation */}
       {isMobileDrawerOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
-          {/* Backdrop overlay */}
-          <div 
+          <div
             onClick={() => setIsMobileDrawerOpen(false)}
-            className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+            className="fixed inset-0 bg-black/45 transition-opacity animate-in fade-in duration-150"
             aria-hidden="true"
           />
 
-          {/* Drawer Panel */}
-          <div className="relative w-[280px] max-w-[85vw] bg-card h-full flex flex-col p-4 shadow-2xl border-r border-separator z-10 animate-in slide-in-from-left duration-200">
-            {/* Header Drawer */}
-            <div className="flex items-center justify-between pb-3 border-b border-separator/60 mb-3">
+          <div className="relative w-[272px] max-w-[85vw] bg-bg-secondary h-full flex flex-col p-4 border-r border-separator z-10 animate-in slide-in-from-left duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-separator mb-3">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center shrink-0">
-                  <School size={18} strokeWidth={2.2} />
+                  <School size={17} strokeWidth={2} />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold tracking-tight text-label leading-tight">
-                    SMP AL-HIDAYAH
-                  </h2>
-                  <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
+                  <p className="text-sm font-semibold text-label leading-tight">
+                    SMP Al-Hidayah
+                  </p>
+                  <p className="text-xs text-label-secondary leading-tight">
                     {formatRoleLabel(userRole)}
-                  </span>
+                  </p>
                 </div>
               </div>
               <button
@@ -338,8 +319,7 @@ function DashboardContent({ children }: { children: ReactNode }) {
               </button>
             </div>
 
-            {/* Nav Menu */}
-            <nav className="flex-1 flex flex-col gap-1 overflow-y-auto pr-1">
+            <nav className="flex-1 flex flex-col gap-1 overflow-y-auto" aria-label="Navigasi Mobile">
               {navItems.map((item) => {
                 const isActive = pathname === item.href;
                 return (
@@ -349,28 +329,27 @@ function DashboardContent({ children }: { children: ReactNode }) {
                     onClick={() => setIsMobileDrawerOpen(false)}
                     className={`flex items-center gap-3 h-10 px-3 rounded-lg transition-colors text-sm ${
                       isActive
-                        ? 'bg-primary text-white font-medium shadow-sm'
+                        ? 'bg-primary-subtle border border-primary-border text-primary font-medium'
                         : 'text-label-secondary hover:text-label hover:bg-fill font-normal'
                     }`}
                   >
-                    <item.icon size={18} strokeWidth={isActive ? 2.2 : 1.75} className="shrink-0" />
+                    <item.icon size={17} strokeWidth={isActive ? 2 : 1.75} className="shrink-0" />
                     <span>{item.name}</span>
                   </Link>
                 );
               })}
             </nav>
 
-            {/* Footer Drawer (User & Logout) */}
-            <div className="pt-3 border-t border-separator/60 mt-auto flex flex-col gap-2">
+            <div className="pt-3 border-t border-separator mt-auto flex flex-col gap-2">
               <div className="flex items-center gap-2 px-1 py-1">
-                <div className="w-7 h-7 rounded-full bg-primary-subtle border border-primary-border text-primary font-bold text-xs flex items-center justify-center shrink-0">
+                <div className="w-7 h-7 rounded-full bg-primary-subtle border border-primary-border text-primary font-semibold text-xs flex items-center justify-center shrink-0">
                   {userEmail ? userEmail.charAt(0).toUpperCase() : 'U'}
                 </div>
                 <div className="flex flex-col min-w-0">
                   <span className="text-xs font-medium text-label truncate">
                     {userEmail}
                   </span>
-                  <span className="text-[10px] text-label-secondary">
+                  <span className="text-[11px] text-label-secondary">
                     {formatRoleLabel(userRole)}
                   </span>
                 </div>
@@ -383,7 +362,7 @@ function DashboardContent({ children }: { children: ReactNode }) {
                 }}
                 className="w-full flex items-center gap-3 h-10 px-3 rounded-lg text-[var(--status-fail)] hover:bg-[var(--status-fail-bg)] transition-colors text-sm font-medium cursor-pointer"
               >
-                <LogOut size={18} strokeWidth={1.75} className="shrink-0" />
+                <LogOut size={17} strokeWidth={1.75} className="shrink-0" />
                 <span>Keluar</span>
               </button>
             </div>
@@ -402,7 +381,6 @@ function DashboardContent({ children }: { children: ReactNode }) {
         onConfirm={confirmLogout}
         onCancel={() => setShowLogoutModal(false)}
       />
-
     </div>
   );
 }

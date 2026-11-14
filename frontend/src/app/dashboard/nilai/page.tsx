@@ -4,20 +4,15 @@ import { apiFetch } from "@/lib/api";
 import { errorMessage } from '@/lib/errors';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  FileSpreadsheet,
   Search,
   Save,
   Filter,
   CheckCircle2,
   AlertCircle,
-  Award,
-  BookOpen,
-  TrendingUp,
   RefreshCw,
   Plus,
   X,
-  Keyboard,
-  Layers
+  Keyboard
 } from 'lucide-react';
 import { useAcademicYear } from '@/lib/AcademicYearContext';
 
@@ -543,25 +538,24 @@ export default function NilaiPage() {
 
   return (
     <div className="flex flex-col gap-5 pb-16">
-      
       {/* Page Title & Action Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-5 border-b border-separator">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-label flex items-center gap-2">
-            <FileSpreadsheet className="text-primary" size={24} />
-            <span>Matriks Penilaian Mata Pelajaran</span>
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-label">
+            Matriks Penilaian Mata Pelajaran
           </h1>
-          <p className="text-xs sm:text-sm text-label-secondary mt-0.5">
-            Formula Resmi: Tugas/Harian (40%) &bull; UTS (30%) &bull; UAS (30%) &bull; KKM {selectedMapel?.kkm || 75}
+          <p className="text-xs sm:text-sm text-label-secondary mt-1">
+            Formula resmi: Tugas 40% &middot; UTS 30% &middot; UAS 30% &middot; KKM{' '}
+            <span className="num-tabular font-medium text-label">{selectedMapel?.kkm || 75}</span>
           </p>
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">
           <button
             onClick={openManualModal}
-            className="h-9 px-3.5 rounded-lg border border-separator hover:bg-card-subtle text-xs font-semibold text-label flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="h-9 px-3.5 rounded-lg border border-separator hover:bg-card-subtle text-xs font-medium text-label flex items-center gap-1.5 transition-colors cursor-pointer"
           >
-            <Plus size={16} />
+            <Plus size={15} />
             <span>Input Tunggal</span>
           </button>
 
@@ -569,7 +563,7 @@ export default function NilaiPage() {
             <button
               onClick={saveAllScores}
               disabled={savingAll || isLoadingNilai}
-              className="h-9 px-4 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-medium flex items-center gap-2 shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+              className="h-9 px-4 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-medium flex items-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
             >
               {savingAll ? (
                 <>
@@ -581,7 +575,7 @@ export default function NilaiPage() {
                   <Save size={14} />
                   <span>Simpan Semua</span>
                   {dirtyCount > 0 && (
-                    <span className="px-1.5 py-0.2 rounded-full bg-[var(--status-dirty)] text-white text-[10px] font-bold font-mono">
+                    <span className="px-1.5 py-0.5 rounded bg-[var(--status-dirty)] text-white text-[11px] font-semibold num-tabular">
                       {dirtyCount}
                     </span>
                   )}
@@ -594,41 +588,41 @@ export default function NilaiPage() {
 
       {/* Notifications */}
       {successMsg && (
-        <div className="p-3 rounded-lg flex items-center gap-2.5 bg-primary-subtle border border-primary-border text-primary text-xs font-medium animate-in fade-in duration-150">
+        <div className="p-3 rounded-lg flex items-center gap-2.5 bg-primary-subtle border border-primary-border text-primary text-xs font-medium">
           <CheckCircle2 size={16} className="shrink-0" />
           <span>{successMsg}</span>
         </div>
       )}
 
       {errorMsg && !isManualModalOpen && (
-        <div className="p-3 rounded-lg flex items-center gap-2.5 bg-[var(--status-fail-bg)] border border-[var(--status-fail-border)] text-[var(--status-fail)] text-xs font-medium animate-in fade-in duration-150">
+        <div className="p-3 rounded-lg flex items-center gap-2.5 bg-[var(--status-fail-bg)] border border-[var(--status-fail-border)] text-[var(--status-fail)] text-xs font-medium">
           <AlertCircle size={16} className="shrink-0" />
           <span>{errorMsg}</span>
         </div>
       )}
 
       {/* Filter Section */}
-      <section className="bg-card rounded-xl border border-separator p-4 shadow-sm flex flex-col gap-3">
+      <section className="bg-card rounded-xl border border-separator p-4 flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs font-bold text-label-secondary uppercase tracking-wider">
+          <div className="flex items-center gap-2 text-xs font-semibold text-label-secondary">
             <Filter size={14} className="text-primary" />
             <span>Pilihan Kelas & Mata Pelajaran</span>
           </div>
-          <div className="hidden lg:flex items-center gap-1.5 text-[11px] text-label-tertiary">
+          <div className="hidden lg:flex items-center gap-1.5 text-xs text-label-tertiary">
             <Keyboard size={13} />
-            <span>Ketik angka &bull; Panah untuk berpindah sel</span>
+            <span>Ketik angka &middot; Panah untuk berpindah sel</span>
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {/* Kelas */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-label">Kelas</label>
+            <label className="text-xs font-medium text-label">Kelas</label>
             <select
               value={selectedKelasId}
               onChange={(e) => setSelectedKelasId(e.target.value)}
               disabled={isLoadingMaster || kelasList.length === 0}
-              className="h-9 px-3 rounded-lg bg-bg border border-separator text-label text-xs font-medium focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all cursor-pointer"
+              className="h-9 px-3 rounded-lg bg-bg border border-separator text-label text-xs font-medium focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer"
             >
               {kelasList.length === 0 ? (
                 <option value="">Belum ada kelas</option>
@@ -644,12 +638,12 @@ export default function NilaiPage() {
 
           {/* Mapel */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-label">Mata Pelajaran</label>
+            <label className="text-xs font-medium text-label">Mata Pelajaran</label>
             <select
               value={selectedMapelId}
               onChange={(e) => setSelectedMapelId(e.target.value)}
               disabled={isLoadingMaster || mapelList.length === 0}
-              className="h-9 px-3 rounded-lg bg-bg border border-separator text-label text-xs font-medium focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all cursor-pointer"
+              className="h-9 px-3 rounded-lg bg-bg border border-separator text-label text-xs font-medium focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer"
             >
               {mapelList.length === 0 ? (
                 <option value="">Belum ada mata pelajaran</option>
@@ -663,26 +657,26 @@ export default function NilaiPage() {
             </select>
           </div>
 
-          {/* Semester (Sinkron Global) */}
+          {/* Semester */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-label">Semester</label>
+            <label className="text-xs font-medium text-label">Semester</label>
             <select
               value={semester}
               onChange={(e) => setSemester(e.target.value)}
-              className="h-9 px-3 rounded-lg bg-bg border border-separator text-label text-xs font-medium focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all cursor-pointer"
+              className="h-9 px-3 rounded-lg bg-bg border border-separator text-label text-xs font-medium focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer"
             >
               <option value="GANJIL">Semester Ganjil</option>
               <option value="GENAP">Semester Genap</option>
             </select>
           </div>
 
-          {/* Tahun Ajaran (Sinkron Global) */}
+          {/* Tahun Ajaran */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-label">Tahun Ajaran</label>
+            <label className="text-xs font-medium text-label">Tahun Ajaran</label>
             <select
               value={tahunAjaran}
               onChange={(e) => setTahunAjaran(e.target.value)}
-              className="h-9 px-3 rounded-lg bg-bg border border-separator text-label text-xs font-medium focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all cursor-pointer"
+              className="h-9 px-3 rounded-lg bg-bg border border-separator text-label text-xs font-medium focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer"
             >
               {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
             </select>
@@ -691,88 +685,72 @@ export default function NilaiPage() {
 
         {/* Active Filter Context Chips */}
         {selectedKelas && selectedMapel && (
-          <div className="pt-2 border-t border-separator/50 flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-label-tertiary text-[11px] font-semibold uppercase tracking-wider">Konteks Aktif:</span>
-            <span className="px-2.5 py-0.5 rounded-full bg-primary-subtle border border-primary-border text-primary font-semibold text-xs">
+          <div className="pt-2.5 border-t border-separator flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-label-tertiary text-xs font-medium">Konteks aktif:</span>
+            <span className="px-2.5 py-0.5 rounded-md bg-primary-subtle border border-primary-border text-primary font-medium text-xs">
               {selectedKelas.nama}
             </span>
-            <span className="text-label-tertiary">&bull;</span>
-            <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 font-semibold text-xs">
+            <span className="px-2.5 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 font-medium text-xs">
               {selectedMapel.nama} (KKM {selectedMapel.kkm})
             </span>
-            <span className="text-label-tertiary">&bull;</span>
-            <span className="px-2.5 py-0.5 rounded-md bg-fill text-label-secondary font-mono text-[11px] border border-separator/50">
-              Semester {semester} &bull; {tahunAjaran}
+            <span className="px-2.5 py-0.5 rounded-md bg-fill text-label-secondary font-id text-xs border border-separator">
+              Semester {semester === 'GANJIL' ? 'Ganjil' : 'Genap'} &middot; {tahunAjaran}
             </span>
           </div>
         )}
       </section>
 
-      {/* Metrics Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-card border border-separator rounded-xl p-3.5 flex flex-col gap-1 shadow-sm">
-          <div className="flex items-center justify-between text-label-secondary">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Standar KKM</span>
-            <Award size={14} className="text-accent" />
-          </div>
-          <span className="text-2xl font-bold tabular-nums text-label">
+      {/* KPI Typographic Strip */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-separator border border-separator rounded-xl overflow-hidden">
+        <div className="bg-card p-4 flex flex-col gap-1">
+          <span className="text-[13px] font-medium text-label-secondary">Standar KKM</span>
+          <span className="text-2xl font-semibold num-tabular text-label">
             {selectedMapel ? selectedMapel.kkm : '-'}
           </span>
-          <span className="text-[11px] text-label-secondary truncate">
+          <span className="text-xs text-label-secondary truncate">
             {selectedMapel?.nama || '-'}
           </span>
         </div>
 
-        <div className="bg-card border border-separator rounded-xl p-3.5 flex flex-col gap-1 shadow-sm">
-          <div className="flex items-center justify-between text-label-secondary">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Kelengkapan Nilai</span>
-            <Layers size={14} className="text-primary" />
-          </div>
-          <span className="text-2xl font-bold tabular-nums text-label">
+        <div className="bg-card p-4 flex flex-col gap-1">
+          <span className="text-[13px] font-medium text-label-secondary">Kelengkapan nilai</span>
+          <span className="text-2xl font-semibold num-tabular text-label">
             {statsSummary.dinilai} <span className="text-sm font-normal text-label-secondary">/ {statsSummary.totalSiswa}</span>
           </span>
-          <span className="text-[11px] text-label-secondary">
+          <span className="text-xs text-label-secondary">
             {statsSummary.totalSiswa > 0
               ? `${Math.round((statsSummary.dinilai / statsSummary.totalSiswa) * 100)}% siswa dinilai`
               : 'Belum ada siswa'}
           </span>
         </div>
 
-        <div className="bg-card border border-separator rounded-xl p-3.5 flex flex-col gap-1 shadow-sm">
-          <div className="flex items-center justify-between text-label-secondary">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Rata-Rata Kelas</span>
-            <TrendingUp size={14} className="text-accent" />
-          </div>
-          <span className="text-2xl font-bold tabular-nums text-label">
+        <div className="bg-card p-4 flex flex-col gap-1">
+          <span className="text-[13px] font-medium text-label-secondary">Rata-rata kelas</span>
+          <span className="text-2xl font-semibold num-tabular text-label">
             {statsSummary.avgKelas}
           </span>
-          <span className="text-[11px] text-label-secondary">Skala 0 - 100</span>
+          <span className="text-xs text-label-secondary">Skala 0 - 100</span>
         </div>
 
-        <div className="bg-card border border-separator rounded-xl p-3.5 flex flex-col gap-1 shadow-sm">
-          <div className="flex items-center justify-between text-label-secondary">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Tuntas KKM</span>
-            <BookOpen size={14} className="text-primary" />
-          </div>
-          <span className="text-2xl font-bold tabular-nums text-primary">
+        <div className="bg-card p-4 flex flex-col gap-1">
+          <span className="text-[13px] font-medium text-label-secondary">Tuntas KKM</span>
+          <span className="text-2xl font-semibold num-tabular text-primary">
             {statsSummary.percentTuntas}%
           </span>
-          <span className="text-[11px] text-label-secondary">&ge; {statsSummary.kkm} poin KKM</span>
+          <span className="text-xs text-label-secondary">&ge; {statsSummary.kkm} poin KKM</span>
         </div>
       </div>
 
       {/* Spreadsheet-Grade Matrix Table */}
-      <section className="bg-card rounded-xl border border-separator shadow-sm overflow-hidden flex flex-col">
-        
+      <section className="bg-card rounded-xl border border-separator overflow-hidden flex flex-col">
         {/* Table Controls Header */}
-        <div className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-separator bg-bg/50">
+        <div className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-separator bg-fill/30">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-sm text-label">
               Daftar Peserta Didik {selectedKelas ? `Kelas ${selectedKelas.nama}` : ''}
             </span>
             {dirtyCount > 0 && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--status-dirty-bg)] border border-[var(--status-dirty-border)] text-[var(--status-dirty)] text-[11px] font-semibold">
-                <span className="w-1.5 h-1.5 rounded-full bg-[var(--status-dirty)] animate-pulse"></span>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-[var(--status-dirty-bg)] border border-[var(--status-dirty-border)] text-[var(--status-dirty)] text-[11px] font-medium num-tabular">
                 {dirtyCount} siswa belum disimpan
               </span>
             )}
@@ -785,22 +763,22 @@ export default function NilaiPage() {
               placeholder="Cari nama atau NISN..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-8 pl-8 pr-3 rounded-lg bg-bg border border-separator text-label text-xs placeholder:text-label-tertiary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+              className="w-full h-8 pl-8 pr-3 rounded-lg bg-bg border border-separator text-label text-xs placeholder:text-label-tertiary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
             />
           </div>
         </div>
 
-        {/* Scrollable Table Area with Sticky Headers */}
+        {/* Scrollable Table Area */}
         <div className="overflow-x-auto max-h-[65vh]">
           <table className="w-full text-left border-collapse min-w-[780px]">
-            <thead className="sticky top-0 z-20 bg-card border-b border-separator shadow-xs">
-              <tr className="text-xs font-semibold text-label-secondary uppercase tracking-wider">
+            <thead className="sticky top-0 z-20 bg-card border-b border-separator">
+              <tr className="text-xs font-medium text-label-secondary">
                 <th className="px-4 py-3 w-12 text-center">No</th>
                 <th className="px-4 py-3 min-w-[200px]">Nama Peserta Didik / NISN</th>
-                <th className="px-3 py-3 w-28 text-center bg-bg/30">Tugas (40%)</th>
-                <th className="px-3 py-3 w-28 text-center bg-bg/30">UTS (30%)</th>
-                <th className="px-3 py-3 w-28 text-center bg-bg/30">UAS (30%)</th>
-                <th className="px-3 py-3 w-24 text-center">Nilai Akhir</th>
+                <th className="px-3 py-3 w-28 text-center bg-fill/20">Tugas (40%)</th>
+                <th className="px-3 py-3 w-28 text-center bg-fill/20">UTS (30%)</th>
+                <th className="px-3 py-3 w-28 text-center bg-fill/20">UAS (30%)</th>
+                <th className="px-3 py-3 w-24 text-right">Nilai Akhir</th>
                 <th className="px-3 py-3 w-20 text-center">Predikat</th>
                 <th className="px-3 py-3 w-28 text-center">Status</th>
                 <th className="px-4 py-3 w-16 text-right">Aksi</th>
@@ -841,23 +819,23 @@ export default function NilaiPage() {
                   return (
                     <tr
                       key={siswa.id}
-                      className={`hover:bg-card-subtle/50 transition-colors ${
+                      className={`hover:bg-card-subtle transition-colors ${
                         rowDirty ? 'bg-amber-500/5' : ''
                       }`}
                     >
-                      <td className="px-4 py-3 text-center text-xs text-label-tertiary tabular-nums">
+                      <td className="px-4 py-3 text-center text-xs text-label-tertiary num-tabular">
                         {idx + 1}
                       </td>
 
                       <td className="px-4 py-3">
                         <div className="flex flex-col">
                           <span className="font-semibold text-label leading-tight">{siswa.nama}</span>
-                          <span className="text-[11px] font-mono text-label-tertiary">{siswa.nisn}</span>
+                          <span className="text-[11px] font-id text-label-tertiary">{siswa.nisn}</span>
                         </div>
                       </td>
 
                       {/* Tugas */}
-                      <td className="px-2 py-2 text-center bg-bg/20">
+                      <td className="px-2 py-2 text-center bg-fill/15">
                         <input
                           type="number"
                           min="0"
@@ -865,12 +843,12 @@ export default function NilaiPage() {
                           value={studentScores.TUGAS}
                           onChange={(e) => handleScoreChange(siswa.id, 'TUGAS', e.target.value)}
                           placeholder="-"
-                          className="w-20 h-8 mx-auto px-2 text-center font-mono text-xs font-semibold rounded-md border border-separator bg-bg text-label focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                          className="w-20 h-8 mx-auto px-2 text-center num-tabular text-xs font-semibold rounded-md border border-separator bg-bg text-label focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                         />
                       </td>
 
                       {/* UTS */}
-                      <td className="px-2 py-2 text-center bg-bg/20">
+                      <td className="px-2 py-2 text-center bg-fill/15">
                         <input
                           type="number"
                           min="0"
@@ -878,12 +856,12 @@ export default function NilaiPage() {
                           value={studentScores.UTS}
                           onChange={(e) => handleScoreChange(siswa.id, 'UTS', e.target.value)}
                           placeholder="-"
-                          className="w-20 h-8 mx-auto px-2 text-center font-mono text-xs font-semibold rounded-md border border-separator bg-bg text-label focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                          className="w-20 h-8 mx-auto px-2 text-center num-tabular text-xs font-semibold rounded-md border border-separator bg-bg text-label focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                         />
                       </td>
 
                       {/* UAS */}
-                      <td className="px-2 py-2 text-center bg-bg/20">
+                      <td className="px-2 py-2 text-center bg-fill/15">
                         <input
                           type="number"
                           min="0"
@@ -891,12 +869,12 @@ export default function NilaiPage() {
                           value={studentScores.UAS}
                           onChange={(e) => handleScoreChange(siswa.id, 'UAS', e.target.value)}
                           placeholder="-"
-                          className="w-20 h-8 mx-auto px-2 text-center font-mono text-xs font-semibold rounded-md border border-separator bg-bg text-label focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                          className="w-20 h-8 mx-auto px-2 text-center num-tabular text-xs font-semibold rounded-md border border-separator bg-bg text-label focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                         />
                       </td>
 
                       {/* Nilai Akhir NA */}
-                      <td className="px-3 py-3 text-center font-mono font-bold text-sm tabular-nums">
+                      <td className="px-3 py-3 text-right num-tabular font-semibold text-sm">
                         {avg !== null ? (
                           <span className={passed ? 'text-primary' : 'text-[var(--status-fail)]'}>
                             {avg.toFixed(1)}
@@ -907,16 +885,16 @@ export default function NilaiPage() {
                       </td>
 
                       {/* Predikat */}
-                      <td className="px-3 py-3 text-center font-bold text-xs">
+                      <td className="px-3 py-3 text-center font-semibold text-xs">
                         {predikat !== '-' ? (
                           <span
-                            className={`inline-block w-6 h-6 rounded-md text-center leading-6 text-xs font-bold ${
+                            className={`inline-block w-6 h-6 rounded-md text-center leading-6 text-xs font-semibold ${
                               predikat === 'A'
                                 ? 'bg-primary-subtle text-primary border border-primary-border'
                                 : predikat === 'B'
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800/50'
                                 : predikat === 'C'
-                                ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                ? 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800/50'
                                 : 'bg-[var(--status-fail-bg)] text-[var(--status-fail)] border border-[var(--status-fail-border)]'
                             }`}
                           >
@@ -931,10 +909,10 @@ export default function NilaiPage() {
                       <td className="px-3 py-3 text-center">
                         {avg !== null ? (
                           <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                            className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium ${
                               passed
-                                ? 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border border-emerald-500/20'
-                                : 'bg-red-500/10 text-red-700 dark:text-red-300 border border-red-500/20'
+                                ? 'bg-primary-subtle text-primary border border-primary-border'
+                                : 'bg-[var(--status-fail-bg)] text-[var(--status-fail)] border border-[var(--status-fail-border)]'
                             }`}
                           >
                             {passed ? 'Tuntas' : 'Remedial'}
@@ -952,7 +930,7 @@ export default function NilaiPage() {
                           title={rowDirty ? 'Simpan perubahan siswa ini' : 'Data sudah tersimpan'}
                           className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
                             rowDirty
-                              ? 'bg-amber-500/10 border-amber-500/30 text-amber-700 hover:bg-amber-500/20'
+                              ? 'bg-amber-500/10 border-amber-500/30 text-accent hover:bg-amber-500/20'
                               : 'border-transparent text-label-tertiary hover:bg-fill'
                           }`}
                         >
@@ -972,24 +950,24 @@ export default function NilaiPage() {
         </div>
       </section>
 
-      {/* Sticky Save Bar (Hanya muncul jika ada baris nilai yang diubah) */}
+      {/* Sticky Save Bar */}
       {dirtyCount > 0 && (
-        <div className="sticky bottom-4 left-0 right-0 z-30 bg-card/95 backdrop-blur-md border border-amber-500/40 rounded-2xl p-4 shadow-xl flex items-center justify-between gap-4 animate-in slide-in-from-bottom duration-200">
+        <div className="sticky bottom-4 left-0 right-0 z-30 bg-card border border-amber-500/40 rounded-xl p-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping shrink-0" />
+            <AlertCircle size={18} className="text-accent shrink-0" />
             <div>
-              <div className="text-xs font-bold text-label">
-                {dirtyCount} siswa memiliki nilai baru yang belum disimpan!
+              <div className="text-xs font-semibold text-label num-tabular">
+                {dirtyCount} siswa memiliki nilai baru yang belum disimpan
               </div>
-              <div className="text-[11px] text-label-secondary hidden sm:block">
-                Tekan tombol Simpan Semua agar nilai langsung tersinkronisasi ke rekapitulasi rapor.
+              <div className="text-xs text-label-secondary hidden sm:block">
+                Tekan tombol Simpan Semua agar nilai tersinkronisasi ke rekapitulasi rapor.
               </div>
             </div>
           </div>
           <button
             onClick={saveAllScores}
             disabled={savingAll}
-            className="h-9 px-5 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs font-semibold shadow-md transition-all flex items-center gap-2 cursor-pointer shrink-0"
+            className="h-9 px-5 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-medium transition-colors flex items-center gap-2 cursor-pointer shrink-0"
           >
             {savingAll ? (
               <>
@@ -1008,11 +986,11 @@ export default function NilaiPage() {
 
       {/* Modal Input Nilai Manual Tunggal */}
       {isManualModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-card w-full max-w-md p-6 rounded-2xl border border-separator shadow-lg relative flex flex-col gap-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45">
+          <div className="bg-card w-full max-w-md p-6 rounded-xl border border-separator relative flex flex-col gap-5">
             <div className="flex items-center justify-between pb-2 border-b border-separator">
               <div>
-                <h2 className="text-base font-bold text-label">Input Nilai Siswa Tunggal</h2>
+                <h2 className="text-base font-semibold text-label">Input Nilai Siswa Tunggal</h2>
                 <p className="text-xs text-label-secondary">Penilaian manual perorangan</p>
               </div>
               <button
@@ -1100,7 +1078,7 @@ export default function NilaiPage() {
                     placeholder="0-100"
                     value={manualForm.tugas}
                     onChange={(e) => setManualForm({ ...manualForm, tugas: e.target.value })}
-                    className="h-9 px-2.5 rounded-lg bg-bg border border-separator text-label text-center font-mono text-xs font-semibold focus:outline-none focus:border-primary"
+                    className="h-9 px-2.5 rounded-lg bg-bg border border-separator text-label text-center num-tabular text-xs font-semibold focus:outline-none focus:border-primary"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
@@ -1112,7 +1090,7 @@ export default function NilaiPage() {
                     placeholder="0-100"
                     value={manualForm.uts}
                     onChange={(e) => setManualForm({ ...manualForm, uts: e.target.value })}
-                    className="h-9 px-2.5 rounded-lg bg-bg border border-separator text-label text-center font-mono text-xs font-semibold focus:outline-none focus:border-primary"
+                    className="h-9 px-2.5 rounded-lg bg-bg border border-separator text-label text-center num-tabular text-xs font-semibold focus:outline-none focus:border-primary"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
@@ -1124,7 +1102,7 @@ export default function NilaiPage() {
                     placeholder="0-100"
                     value={manualForm.uas}
                     onChange={(e) => setManualForm({ ...manualForm, uas: e.target.value })}
-                    className="h-9 px-2.5 rounded-lg bg-bg border border-separator text-label text-center font-mono text-xs font-semibold focus:outline-none focus:border-primary"
+                    className="h-9 px-2.5 rounded-lg bg-bg border border-separator text-label text-center num-tabular text-xs font-semibold focus:outline-none focus:border-primary"
                   />
                 </div>
               </div>
@@ -1133,7 +1111,7 @@ export default function NilaiPage() {
                 <button
                   type="button"
                   onClick={() => setIsManualModalOpen(false)}
-                  className="h-9 px-4 rounded-lg text-xs font-semibold text-label-secondary hover:bg-fill transition-colors cursor-pointer"
+                  className="h-9 px-4 rounded-lg text-xs font-medium text-label-secondary hover:bg-fill transition-colors cursor-pointer"
                 >
                   Batal
                 </button>

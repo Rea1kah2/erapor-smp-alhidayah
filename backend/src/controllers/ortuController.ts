@@ -50,19 +50,29 @@ export const updateCatatanOrtu = async (req: AuthRequest, res: Response) => {
             return res.status(400).json({ error: 'Catatan orang tua harus berupa teks.' });
         }
 
-        // Verifikasi kepemilikan anak oleh akun orang tua ini
-        const ortu = await prisma.ortu.findUnique({
-            where: { userId },
-            include: { anak: { select: { id: true } } }
-        });
+        if (req.user?.role === 'ADMIN') {
+            const targetSiswa = await prisma.siswa.findUnique({
+                where: { id: targetSiswaId },
+                select: { id: true }
+            });
+            if (!targetSiswa) {
+                return res.status(404).json({ error: 'Siswa tidak ditemukan.' });
+            }
+        } else {
+            // Verifikasi kepemilikan anak oleh akun orang tua ini
+            const ortu = await prisma.ortu.findUnique({
+                where: { userId },
+                include: { anak: { select: { id: true } } }
+            });
 
-        if (!ortu) {
-            return res.status(404).json({ error: 'Profil orang tua tidak ditemukan.' });
-        }
+            if (!ortu) {
+                return res.status(404).json({ error: 'Profil orang tua tidak ditemukan.' });
+            }
 
-        const isChildOfParent = ortu.anak.some((a) => a.id === targetSiswaId);
-        if (!isChildOfParent) {
-            return res.status(403).json({ error: 'Akses ditolak: Siswa ini bukan anak yang terhubung dengan akun Anda.' });
+            const isChildOfParent = ortu.anak.some((a) => a.id === targetSiswaId);
+            if (!isChildOfParent) {
+                return res.status(403).json({ error: 'Akses ditolak: Siswa ini bukan anak yang terhubung dengan akun Anda.' });
+            }
         }
 
         // Upsert catatan rapor dengan field catatanOrtu

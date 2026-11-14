@@ -197,16 +197,23 @@ export const registerGuruMapel = async (req: AuthRequest, res: Response) => {
                 }
             });
 
-            // Jika ada mapelIds dan kelasId yang ditentukan
-            if (Array.isArray(mapelIds) && mapelIds.length > 0 && kelasId && activeYear) {
-                for (const mapelId of mapelIds) {
-                    await tx.penugasanMapel.create({
-                        data: {
+            // Jika ada mapelIds yang dipilih, catat mapel pengampu default dan buat penugasan pada kelas jika dipilih
+            if (Array.isArray(mapelIds) && mapelIds.length > 0) {
+                const cleanMapelIds = mapelIds.map((id) => String(id));
+                await tx.mapel.updateMany({
+                    where: { id: { in: cleanMapelIds } },
+                    data: { guruId: guru.id }
+                });
+
+                if (kelasId && activeYear) {
+                    await tx.penugasanMapel.createMany({
+                        data: cleanMapelIds.map((mapelId) => ({
                             guruId: guru.id,
-                            mapelId: String(mapelId),
+                            mapelId,
                             kelasId: String(kelasId),
                             tahunAjaranId: activeYear.id
-                        }
+                        })),
+                        skipDuplicates: true
                     });
                 }
             }
@@ -454,6 +461,8 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
 
         await prisma.$transaction(async (tx) => {
             if (user.guru) {
+                await tx.kelas.updateMany({ where: { waliId: user.guru.id }, data: { waliId: null } });
+                await tx.mapel.updateMany({ where: { guruId: user.guru.id }, data: { guruId: null } });
                 await tx.penugasanMapel.deleteMany({ where: { guruId: user.guru.id } });
                 await tx.penugasanWali.deleteMany({ where: { guruId: user.guru.id } });
                 await tx.guru.delete({ where: { id: user.guru.id } });

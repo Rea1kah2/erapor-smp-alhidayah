@@ -15,9 +15,15 @@ export default function RootLayout({
     return (
         <html lang="id" suppressHydrationWarning>
             <head>
+                <link rel="preconnect" href="https://fonts.googleapis.com" />
+                <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+                <link
+                    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Lora:wght@600;700&display=swap"
+                    rel="stylesheet"
+                />
                 <script
                     dangerouslySetInnerHTML={{
-                        __html: `try{var t=localStorage.getItem("siakad_theme");if(t){document.documentElement.setAttribute("data-theme", t)}else if(window.matchMedia("(prefers-color-scheme: dark)").matches){document.documentElement.setAttribute("data-theme", "dark")}}catch(e){}try{var r=localStorage.getItem("siakad_role");if(r){document.documentElement.setAttribute("data-role", r)}}catch(e){}`,
+                        __html: `try{var t=localStorage.getItem("siakad_theme");if(t){document.documentElement.setAttribute("data-theme", t)}else if(window.matchMedia("(prefers-color-scheme: dark)").matches){document.documentElement.setAttribute("data-theme", "dark")}}catch(e){}`,
                     }}
                 />
             </head>

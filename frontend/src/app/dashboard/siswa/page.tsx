@@ -47,7 +47,7 @@ export default function DataSiswa() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isOrtuModalOpen, setIsOrtuModalOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [ortuForm, setOrtuForm] = useState({ nama: '', email: '', password: '', siswaIds: [] as string[] });
+  const [ortuForm, setOrtuForm] = useState({ nama: '', nik: '', email: '', password: '', siswaIds: [] as string[] });
   const [isSavingOrtu, setIsSavingOrtu] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -102,19 +102,29 @@ export default function DataSiswa() {
 
   const saveParentAccount = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!/^\d{16}$/.test(ortuForm.nik)) {
+      setErrorMsg('NIK Orang Tua wajib terdiri dari 16 digit angka.');
+      return;
+    }
     setIsSavingOrtu(true);
     setErrorMsg('');
     try {
       const response = await apiFetch('/api/master/ortu', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(ortuForm)
+        body: JSON.stringify({
+          nama: ortuForm.nama,
+          nik: ortuForm.nik,
+          email: ortuForm.email.trim() || undefined,
+          password: ortuForm.password,
+          siswaIds: ortuForm.siswaIds
+        })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Gagal membuat akun orang tua.');
-      setSuccessMsg(`Akun orang tua ${data.data.nama} berhasil dibuat dan ditautkan ke ${data.data.siswaTerhubung} siswa.`);
+      setSuccessMsg(`Akun orang tua ${data.data.nama} (NIK: ${data.data.nik}) berhasil dibuat dan ditautkan ke ${data.data.siswaTerhubung} siswa.`);
       setIsOrtuModalOpen(false);
-      setOrtuForm({ nama: '', email: '', password: '', siswaIds: [] });
+      setOrtuForm({ nama: '', nik: '', email: '', password: '', siswaIds: [] });
       await fetchData();
     } catch (error) {
       setErrorMsg(error instanceof Error ? error.message : 'Gagal membuat akun orang tua.');
@@ -299,72 +309,71 @@ export default function DataSiswa() {
   return (
     <div className="flex flex-col gap-6">
       {/* Header Halaman */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-separator/40">
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-5 border-b border-separator">
         <div>
-          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-xs font-semibold uppercase tracking-wider mb-2 border border-emerald-200/60 dark:border-emerald-800/40">
-            <GraduationCap size={14} />
-            <span>Master Data Peserta Didik</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-serif font-bold text-label leading-tight">
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-label">
             Data Siswa
           </h1>
           <p className="text-sm text-label-secondary mt-1">
-            Kelola data peserta didik, penempatan kelas, dan penautan akun wali murid
+            Kelola data peserta didik, penempatan kelas, dan penautan akun orang tua
           </p>
         </div>
         <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
           {isAdmin && (
-            <button 
-              onClick={() => setIsOrtuModalOpen(true)} 
-              className="h-10 px-4 rounded-xl border border-amber-600/60 text-amber-700 dark:text-amber-400 bg-amber-50/50 dark:bg-amber-950/20 hover:bg-amber-100/60 dark:hover:bg-amber-900/30 text-xs font-semibold flex items-center gap-2 transition-colors shadow-xs"
+            <button
+              onClick={() => {
+                setErrorMsg('');
+                setOrtuForm({ nama: '', nik: '', email: '', password: '', siswaIds: [] });
+                setIsOrtuModalOpen(true);
+              }}
+              className="h-9 px-3.5 rounded-lg border border-accent text-accent hover:bg-amber-50 dark:hover:bg-amber-950/30 text-xs font-medium flex items-center gap-2 transition-colors cursor-pointer"
             >
-              <UserPlus size={16} />
+              <UserPlus size={15} />
               <span>Tautkan Akun Orang Tua</span>
             </button>
           )}
           {isAdmin && (
-            <button 
+            <button
               onClick={openAddModal}
-              className="h-10 px-5 rounded-xl font-semibold text-xs text-white bg-primary hover:bg-primary-hover active:scale-95 transition-all flex items-center justify-center gap-2 shadow-sm"
+              className="h-9 px-4 rounded-lg font-medium text-xs text-white bg-primary hover:bg-primary-hover transition-colors flex items-center justify-center gap-2 cursor-pointer"
             >
-              <Plus size={16} strokeWidth={2.5} />
+              <Plus size={15} strokeWidth={2.2} />
               <span>Tambah Siswa</span>
             </button>
           )}
         </div>
       </header>
 
-      {/* Notifikasi Toast / Banner */}
+      {/* Notifikasi Banner */}
       {successMsg && (
-        <div className="p-3.5 rounded-xl flex items-center gap-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800/60 shadow-xs animate-in fade-in duration-200">
-          <CheckCircle2 size={18} className="text-emerald-700 dark:text-emerald-400 shrink-0" />
+        <div className="p-3.5 rounded-xl flex items-center gap-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 border border-emerald-500/30">
+          <CheckCircle2 size={18} className="text-primary shrink-0" />
           <p className="text-xs sm:text-sm font-medium">{successMsg}</p>
         </div>
       )}
 
       {errorMsg && !isModalOpen && !isOrtuModalOpen && !deletingSiswa && (
-        <div className="p-3.5 rounded-xl flex items-center gap-2.5 bg-red-50 dark:bg-red-950/40 text-red-900 dark:text-red-200 border border-red-200 dark:border-red-800/60 shadow-xs animate-in fade-in duration-200">
-          <AlertCircle size={18} className="text-red-700 dark:text-red-400 shrink-0" />
+        <div className="p-3.5 rounded-xl flex items-center gap-2.5 bg-red-50 dark:bg-red-950/40 text-red-900 dark:text-red-200 border border-red-500/30">
+          <AlertCircle size={18} className="text-[var(--status-fail)] shrink-0" />
           <p className="text-xs sm:text-sm font-medium">{errorMsg}</p>
         </div>
       )}
 
-      {/* Filter Kategori Kelas (Pill Tabs Navigation) & Search */}
-      <section className="bg-bg-secondary rounded-2xl p-4 border border-separator/40 shadow-xs flex flex-col gap-3.5">
+      {/* Filter Kategori Kelas & Search */}
+      <section className="bg-card rounded-xl p-4 border border-separator flex flex-col gap-3.5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-label font-serif font-bold text-sm">
-            <Filter size={16} className="text-emerald-800 dark:text-emerald-400" />
+          <div className="flex items-center gap-2 text-label font-semibold text-sm">
+            <Filter size={15} className="text-primary" />
             <span>Filter Kelas</span>
           </div>
 
-          {/* Toggle Grouping & Search */}
           <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
-            <label className="flex items-center gap-2 text-xs font-medium text-label-secondary cursor-pointer select-none px-3 py-1.5 rounded-lg bg-fill hover:bg-fill/80 transition-colors border border-separator/30">
+            <label className="flex items-center gap-2 text-xs font-medium text-label-secondary cursor-pointer select-none px-3 py-1.5 rounded-lg bg-fill hover:bg-card-subtle transition-colors border border-separator">
               <input
                 type="checkbox"
                 checked={groupByClass}
                 onChange={(e) => setGroupByClass(e.target.checked)}
-                className="w-3.5 h-3.5 rounded accent-emerald-800 cursor-pointer"
+                className="w-3.5 h-3.5 rounded accent-primary cursor-pointer"
               />
               <span>Kelompokkan per Kelas</span>
             </label>
@@ -376,12 +385,12 @@ export default function DataSiswa() {
                 placeholder="Cari nama, NISN, wali murid..."
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-                className="w-full h-9 pl-9 pr-8 rounded-lg bg-fill text-label text-xs placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-emerald-700/50 border border-separator/40 transition-all"
+                className="w-full h-9 pl-9 pr-8 rounded-lg bg-bg text-label text-xs placeholder:text-label-tertiary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary border border-separator"
               />
               {searchQuery && (
                 <button
                   onClick={() => { setSearchQuery(''); setCurrentPage(1); }}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-label-tertiary hover:text-label"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-label-tertiary hover:text-label cursor-pointer"
                 >
                   <X size={14} />
                 </button>
@@ -390,26 +399,23 @@ export default function DataSiswa() {
           </div>
         </div>
 
-        {/* Scrollable Kelas Pill Tabs */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 no-scrollbar">
-          {/* Tab Semua Siswa */}
           <button
             onClick={() => { setSelectedKelasFilter('ALL'); setCurrentPage(1); }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 border ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-2 border cursor-pointer ${
               selectedKelasFilter === 'ALL'
-                ? 'bg-primary text-white border-primary shadow-xs'
-                : 'bg-fill text-label hover:bg-fill/80 border-separator/40'
+                ? 'bg-primary text-white border-primary'
+                : 'bg-fill text-label hover:bg-card-subtle border-separator'
             }`}
           >
             <span>Semua Siswa</span>
-            <span className={`px-1.5 py-0.5 rounded-md text-[10px] tabular-nums font-bold ${
+            <span className={`px-1.5 py-0.5 rounded text-[11px] num-tabular font-semibold ${
               selectedKelasFilter === 'ALL' ? 'bg-white/20 text-white' : 'bg-bg text-label-secondary'
             }`}>
               {classCountMap.ALL || 0}
             </span>
           </button>
 
-          {/* Tab per Kelas */}
           {kelasList.map((k) => {
             const count = classCountMap[k.id] || 0;
             const isSelected = selectedKelasFilter === k.id;
@@ -417,14 +423,14 @@ export default function DataSiswa() {
               <button
                 key={k.id}
                 onClick={() => { setSelectedKelasFilter(k.id); setCurrentPage(1); }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 border ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-2 border cursor-pointer ${
                   isSelected
-                    ? 'bg-primary text-white border-primary shadow-xs'
-                    : 'bg-fill text-label hover:bg-fill/80 border-separator/40'
+                    ? 'bg-primary text-white border-primary'
+                    : 'bg-fill text-label hover:bg-card-subtle border-separator'
                 }`}
               >
                 <span>{k.nama}</span>
-                <span className={`px-1.5 py-0.5 rounded-md text-[10px] tabular-nums font-bold ${
+                <span className={`px-1.5 py-0.5 rounded text-[11px] num-tabular font-semibold ${
                   isSelected ? 'bg-white/20 text-white' : 'bg-bg text-label-secondary'
                 }`}>
                   {count}
@@ -433,17 +439,16 @@ export default function DataSiswa() {
             );
           })}
 
-          {/* Tab Belum Ditempatkan */}
           <button
             onClick={() => { setSelectedKelasFilter('UNASSIGNED'); setCurrentPage(1); }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 border ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-2 border cursor-pointer ${
               selectedKelasFilter === 'UNASSIGNED'
-                ? 'bg-amber-700 text-white border-amber-700 shadow-xs'
-                : 'bg-fill text-label hover:bg-fill/80 border-separator/40'
+                ? 'bg-accent text-white border-accent'
+                : 'bg-fill text-label hover:bg-card-subtle border-separator'
             }`}
           >
             <span>Belum Ditempatkan</span>
-            <span className={`px-1.5 py-0.5 rounded-md text-[10px] tabular-nums font-bold ${
+            <span className={`px-1.5 py-0.5 rounded text-[11px] num-tabular font-semibold ${
               selectedKelasFilter === 'UNASSIGNED' ? 'bg-white/20 text-white' : 'bg-bg text-label-secondary'
             }`}>
               {classCountMap.UNASSIGNED || 0}
@@ -452,28 +457,28 @@ export default function DataSiswa() {
         </div>
       </section>
 
-      {/* Mode 1: Group By Class (Kategori Terpisah per Blok Kelas) */}
+      {/* Mode 1: Group By Class */}
       {groupByClass ? (
         <div className="flex flex-col gap-6">
           {isLoading ? (
-            <div className="p-12 text-center text-label-secondary bg-bg-secondary rounded-2xl border border-separator/40">
-              <RefreshCw size={24} className="animate-spin text-emerald-800 dark:text-emerald-400 mx-auto mb-2" />
+            <div className="p-12 text-center text-label-secondary bg-card rounded-xl border border-separator">
+              <RefreshCw size={22} className="animate-spin text-primary mx-auto mb-2" />
               <span className="text-xs">Memuat data siswa...</span>
             </div>
           ) : !groupedSiswa || groupedSiswa.length === 0 ? (
-            <div className="p-12 text-center text-label-secondary bg-bg-secondary rounded-2xl border border-separator/40">
-              <GraduationCap size={44} className="text-label-tertiary mx-auto mb-2 strokeWidth={1}" />
+            <div className="p-12 text-center text-label-secondary bg-card rounded-xl border border-separator">
+              <GraduationCap size={40} className="text-label-tertiary mx-auto mb-2" strokeWidth={1.5} />
               <p className="font-semibold text-sm">Tidak ada siswa yang sesuai filter</p>
             </div>
           ) : (
             groupedSiswa.map((grp) => (
-              <section key={grp.id} className="bg-bg-secondary rounded-2xl border border-separator/40 shadow-xs overflow-hidden flex flex-col">
-                <div className="px-5 py-3.5 bg-fill/40 border-b border-separator/40 flex items-center justify-between">
+              <section key={grp.id} className="bg-card rounded-xl border border-separator overflow-hidden flex flex-col">
+                <div className="px-5 py-3.5 bg-fill/40 border-b border-separator flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <School size={17} className="text-emerald-800 dark:text-emerald-400" />
-                    <h3 className="font-serif font-bold text-label text-sm sm:text-base">{grp.title}</h3>
+                    <School size={16} className="text-primary" />
+                    <h3 className="font-semibold text-label text-sm sm:text-base">{grp.title}</h3>
                   </div>
-                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-800/40 font-semibold tabular-nums">
+                  <span className="text-xs px-2.5 py-0.5 rounded-md bg-primary-subtle text-primary border border-primary-border font-medium num-tabular">
                     {grp.count} Siswa
                   </span>
                 </div>
@@ -481,30 +486,30 @@ export default function DataSiswa() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse min-w-[700px]">
                     <thead>
-                      <tr className="border-b border-separator/40 bg-fill/20">
-                        <th className="px-5 py-3 text-[11px] font-bold text-label-secondary uppercase tracking-wider w-32">NISN</th>
-                        <th className="px-5 py-3 text-[11px] font-bold text-label-secondary uppercase tracking-wider">NAMA LENGKAP</th>
-                        <th className="px-5 py-3 text-[11px] font-bold text-label-secondary uppercase tracking-wider">EMAIL (AKUN)</th>
-                        <th className="px-5 py-3 text-[11px] font-bold text-label-secondary uppercase tracking-wider">WALI MURID</th>
+                      <tr className="border-b border-separator bg-fill/30">
+                        <th className="px-5 py-3 text-xs font-medium text-label-secondary w-32">NISN</th>
+                        <th className="px-5 py-3 text-xs font-medium text-label-secondary">Nama Lengkap</th>
+                        <th className="px-5 py-3 text-xs font-medium text-label-secondary">Email Akun</th>
+                        <th className="px-5 py-3 text-xs font-medium text-label-secondary">Wali Murid</th>
                         {isAdmin && (
-                          <th className="px-5 py-3 text-[11px] font-bold text-label-secondary uppercase tracking-wider text-right w-24">AKSI</th>
+                          <th className="px-5 py-3 text-xs font-medium text-label-secondary text-right w-24">Aksi</th>
                         )}
                       </tr>
                     </thead>
-                    <tbody className="text-xs text-label divide-y divide-separator/30">
+                    <tbody className="text-xs text-label divide-y divide-separator">
                       {grp.items.map((siswa) => (
-                        <tr key={siswa.id} className="hover:bg-fill/50 transition-colors">
-                          <td className="px-5 py-3 font-mono font-medium text-label-secondary tabular-nums">{siswa.nisn}</td>
+                        <tr key={siswa.id} className="hover:bg-card-subtle transition-colors">
+                          <td className="px-5 py-3 font-id font-medium text-label-secondary">{siswa.nisn}</td>
                           <td className="px-5 py-3 font-semibold text-label">{siswa.nama}</td>
                           <td className="px-5 py-3 text-label-secondary">{siswa.user.email}</td>
                           <td className="px-5 py-3">
                             {siswa.ortu ? (
-                              <span className="inline-flex items-center gap-1.5 text-xs text-emerald-800 dark:text-emerald-400 font-medium">
+                              <span className="inline-flex items-center gap-1.5 text-xs text-primary font-medium">
                                 <UserCheck size={13} />
                                 {siswa.ortu.nama}
                               </span>
                             ) : (
-                              <span className="text-xs text-label-tertiary italic">Belum ditautkan</span>
+                              <span className="text-xs text-label-tertiary">Belum ditautkan</span>
                             )}
                           </td>
                           {isAdmin && (
@@ -512,14 +517,14 @@ export default function DataSiswa() {
                               <div className="flex items-center justify-end gap-1">
                                 <button
                                   onClick={() => openEditModal(siswa)}
-                                  className="p-1.5 rounded-lg hover:bg-fill text-label-secondary hover:text-emerald-800 dark:hover:text-emerald-400 transition-colors"
+                                  className="p-1.5 rounded-lg hover:bg-fill text-label-secondary hover:text-primary transition-colors cursor-pointer"
                                   title="Edit Siswa"
                                 >
                                   <Pencil size={15} />
                                 </button>
                                 <button
                                   onClick={() => setDeletingSiswa(siswa)}
-                                  className="p-1.5 rounded-lg hover:bg-fill text-label-secondary hover:text-red-600 transition-colors"
+                                  className="p-1.5 rounded-lg hover:bg-fill text-label-secondary hover:text-red-600 transition-colors cursor-pointer"
                                   title="Hapus Siswa"
                                 >
                                   <Trash2 size={15} />
@@ -538,30 +543,30 @@ export default function DataSiswa() {
         </div>
       ) : (
         /* Mode 2: Standard Unified Table with Pagination */
-        <section className="bg-bg-secondary rounded-2xl border border-separator/40 shadow-xs overflow-hidden flex flex-col">
-          <div className="sm:hidden px-4 py-1.5 text-[10px] text-label-tertiary italic text-right border-b border-separator/30">
+        <section className="bg-card rounded-xl border border-separator overflow-hidden flex flex-col">
+          <div className="sm:hidden px-4 py-1.5 text-xs text-label-tertiary text-right border-b border-separator">
             Geser tabel ke samping untuk melihat data lengkap &rarr;
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[700px]">
               <thead>
-                <tr className="border-b border-separator/40 bg-fill/40">
-                  <th className="px-5 py-3.5 text-[11px] font-bold text-label-secondary uppercase tracking-wider w-32">NISN</th>
-                  <th className="px-5 py-3.5 text-[11px] font-bold text-label-secondary uppercase tracking-wider">NAMA LENGKAP</th>
-                  <th className="px-5 py-3.5 text-[11px] font-bold text-label-secondary uppercase tracking-wider">KELAS</th>
-                  <th className="px-5 py-3.5 text-[11px] font-bold text-label-secondary uppercase tracking-wider">WALI MURID</th>
-                  <th className="px-5 py-3.5 text-[11px] font-bold text-label-secondary uppercase tracking-wider">EMAIL (AKUN)</th>
+                <tr className="border-b border-separator bg-fill/50">
+                  <th className="px-5 py-3.5 text-xs font-medium text-label-secondary w-32">NISN</th>
+                  <th className="px-5 py-3.5 text-xs font-medium text-label-secondary">Nama Lengkap</th>
+                  <th className="px-5 py-3.5 text-xs font-medium text-label-secondary">Kelas</th>
+                  <th className="px-5 py-3.5 text-xs font-medium text-label-secondary">Wali Murid</th>
+                  <th className="px-5 py-3.5 text-xs font-medium text-label-secondary">Email Akun</th>
                   {isAdmin && (
-                    <th className="px-5 py-3.5 text-[11px] font-bold text-label-secondary uppercase tracking-wider text-right w-24">AKSI</th>
+                    <th className="px-5 py-3.5 text-xs font-medium text-label-secondary text-right w-24">Aksi</th>
                   )}
                 </tr>
               </thead>
-              <tbody className="text-xs sm:text-sm text-label divide-y divide-separator/30">
+              <tbody className="text-xs sm:text-sm text-label divide-y divide-separator">
                 {isLoading ? (
                   <tr>
                     <td colSpan={isAdmin ? 6 : 5} className="px-6 py-12 text-center text-label-secondary">
                       <div className="flex flex-col items-center justify-center gap-2">
-                        <RefreshCw size={24} className="animate-spin text-emerald-800 dark:text-emerald-400" />
+                        <RefreshCw size={22} className="animate-spin text-primary" />
                         <span className="text-xs">Memuat data peserta didik...</span>
                       </div>
                     </td>
@@ -570,7 +575,7 @@ export default function DataSiswa() {
                   <tr>
                     <td colSpan={isAdmin ? 6 : 5} className="px-6 py-14 text-center">
                       <div className="flex flex-col items-center gap-2">
-                        <GraduationCap size={44} className="text-label-tertiary mb-1 strokeWidth={1}" />
+                        <GraduationCap size={40} className="text-label-tertiary mb-1" strokeWidth={1.5} />
                         <p className="font-semibold text-base">Tidak ada data siswa ditemukan</p>
                         <p className="text-xs text-label-secondary">
                           {searchQuery
@@ -584,44 +589,44 @@ export default function DataSiswa() {
                   </tr>
                 ) : (
                   paginatedSiswa.map((siswa) => (
-                    <tr key={siswa.id} className="hover:bg-fill/40 transition-colors">
-                      <td className="px-5 py-3.5 font-mono text-xs font-semibold text-label-secondary tabular-nums">{siswa.nisn}</td>
+                    <tr key={siswa.id} className="hover:bg-card-subtle transition-colors">
+                      <td className="px-5 py-3.5 font-id text-xs font-medium text-label-secondary">{siswa.nisn}</td>
                       <td className="px-5 py-3.5 font-semibold text-label">{siswa.nama}</td>
                       <td className="px-5 py-3.5">
                         {siswa.kelas ? (
-                          <span className="px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-900 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40 rounded-md text-xs font-semibold">
+                          <span className="px-2.5 py-0.5 bg-primary-subtle text-primary border border-primary-border rounded-md text-xs font-medium">
                             {siswa.kelas.nama}
                           </span>
                         ) : (
-                          <span className="text-amber-700 dark:text-amber-400 text-xs italic px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 border border-amber-200/40">
+                          <span className="text-amber-700 dark:text-amber-400 text-xs px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 border border-amber-500/30">
                             Belum ada kelas
                           </span>
                         )}
                       </td>
                       <td className="px-5 py-3.5">
                         {siswa.ortu ? (
-                          <span className="inline-flex items-center gap-1.5 text-xs text-emerald-800 dark:text-emerald-300 font-medium">
-                            <UserCheck size={13} className="text-emerald-700" />
+                          <span className="inline-flex items-center gap-1.5 text-xs text-primary font-medium">
+                            <UserCheck size={13} />
                             {siswa.ortu.nama}
                           </span>
                         ) : (
-                          <span className="text-xs text-label-tertiary italic">Belum terhubung</span>
+                          <span className="text-xs text-label-tertiary">Belum terhubung</span>
                         )}
                       </td>
-                      <td className="px-5 py-3.5 text-label-secondary text-xs">{siswa.user.email}</td>
+                      <td className="px-5 py-3.5 text-label-secondary text-xs font-id">{siswa.user.email}</td>
                       {isAdmin && (
                         <td className="px-5 py-3.5 text-right">
                           <div className="flex items-center justify-end gap-1">
                             <button
                               onClick={() => openEditModal(siswa)}
-                              className="p-1.5 rounded-lg hover:bg-fill text-label-secondary hover:text-emerald-800 dark:hover:text-emerald-400 transition-colors"
+                              className="p-1.5 rounded-lg hover:bg-fill text-label-secondary hover:text-primary transition-colors cursor-pointer"
                               title="Edit Siswa"
                             >
                               <Pencil size={15} />
                             </button>
                             <button
                               onClick={() => setDeletingSiswa(siswa)}
-                              className="p-1.5 rounded-lg hover:bg-fill text-label-secondary hover:text-red-600 transition-colors"
+                              className="p-1.5 rounded-lg hover:bg-fill text-label-secondary hover:text-red-600 transition-colors cursor-pointer"
                               title="Hapus Siswa"
                             >
                               <Trash2 size={15} />
@@ -638,13 +643,13 @@ export default function DataSiswa() {
 
           {/* Pagination Toolbar */}
           {filteredSiswa.length > 0 && (
-            <div className="p-4 border-t border-separator/40 bg-fill/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-label-secondary">
+            <div className="p-4 border-t border-separator bg-fill/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-label-secondary">
               <div className="flex items-center gap-2">
                 <span>Tampilkan</span>
                 <select
                   value={itemsPerPage}
                   onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-                  className="px-2 py-1 rounded bg-bg text-label font-medium border border-separator/40 focus:outline-none cursor-pointer"
+                  className="px-2 py-1 rounded bg-bg text-label font-medium border border-separator focus:outline-none cursor-pointer"
                 >
                   {ITEMS_PER_PAGE_OPTIONS.map((opt) => (
                     <option key={opt} value={opt} className="bg-bg text-label">
@@ -652,27 +657,27 @@ export default function DataSiswa() {
                     </option>
                   ))}
                 </select>
-                <span>dari total <strong>{filteredSiswa.length}</strong> siswa</span>
+                <span>dari total <strong className="num-tabular">{filteredSiswa.length}</strong> siswa</span>
               </div>
 
               <div className="flex items-center gap-1.5 self-center">
                 <button
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
-                  className="p-1.5 rounded-lg hover:bg-fill disabled:opacity-30 disabled:hover:bg-transparent transition-colors border border-separator/30"
+                  className="p-1.5 rounded-lg hover:bg-fill disabled:opacity-30 disabled:hover:bg-transparent transition-colors border border-separator cursor-pointer"
                   title="Halaman Sebelumnya"
                 >
                   <ChevronLeft size={15} />
                 </button>
 
-                <span className="px-3 py-1 font-semibold text-label">
+                <span className="px-3 py-1 font-semibold text-label num-tabular">
                   Halaman {currentPage} / {totalPages}
                 </span>
 
                 <button
                   onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                   disabled={currentPage >= totalPages}
-                  className="p-1.5 rounded-lg hover:bg-fill disabled:opacity-30 disabled:hover:bg-transparent transition-colors border border-separator/30"
+                  className="p-1.5 rounded-lg hover:bg-fill disabled:opacity-30 disabled:hover:bg-transparent transition-colors border border-separator cursor-pointer"
                   title="Halaman Berikutnya"
                 >
                   <ChevronRight size={15} />
@@ -685,21 +690,21 @@ export default function DataSiswa() {
 
       {/* Modal Tambah / Edit Siswa */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="w-full max-w-lg bg-bg-secondary border border-separator/40 rounded-2xl shadow-xl p-6 relative flex flex-col gap-5 max-h-[90vh] overflow-y-auto">
-            <button 
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45">
+          <div className="w-full max-w-lg bg-card border border-separator rounded-xl p-6 relative flex flex-col gap-5 max-h-[90vh] overflow-y-auto">
+            <button
               onClick={() => setIsModalOpen(false)}
-              className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-fill transition-colors text-label-secondary"
+              className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-fill transition-colors text-label-secondary cursor-pointer"
             >
               <X size={20} />
             </button>
 
             <div>
-              <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-800 dark:text-emerald-400 mb-1">
+              <div className="inline-flex items-center gap-1.5 text-xs font-medium text-primary mb-1">
                 <GraduationCap size={15} />
                 <span>Formulir Peserta Didik</span>
               </div>
-              <h2 className="text-xl font-serif font-bold text-label">
+              <h2 className="text-lg font-semibold text-label">
                 {editingId ? 'Perbarui Data Siswa' : 'Pendaftaran Siswa Baru'}
               </h2>
               <p className="text-xs text-label-secondary mt-0.5">
@@ -710,8 +715,8 @@ export default function DataSiswa() {
             </div>
 
             {errorMsg && (
-              <div className="p-3 rounded-xl flex items-start gap-2 bg-red-50 dark:bg-red-950/40 text-red-900 dark:text-red-200 border border-red-200 dark:border-red-800/60 text-xs font-medium">
-                <AlertCircle size={16} className="text-red-700 dark:text-red-400 mt-0.5 shrink-0" />
+              <div className="p-3 rounded-lg flex items-start gap-2 bg-red-50 dark:bg-red-950/40 text-red-900 dark:text-red-200 border border-red-500/30 text-xs font-medium">
+                <AlertCircle size={16} className="text-[var(--status-fail)] mt-0.5 shrink-0" />
                 <p>{errorMsg}</p>
               </div>
             )}
@@ -719,31 +724,32 @@ export default function DataSiswa() {
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-label">Nama Lengkap Siswa</label>
-                <input 
+                <input
                   type="text" required
                   value={formData.nama} onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
                   placeholder="Contoh: Muhammad Rizky"
-                  className="h-10 px-3 rounded-xl bg-fill text-label text-sm border border-separator/40 focus:outline-none focus:ring-2 focus:ring-emerald-700/50"
+                  className="h-10 px-3 rounded-lg bg-bg text-label text-sm border border-separator focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-semibold text-label">NISN (10 Digit)</label>
-                  <input 
+                  <input
                     type="text" required
-                    value={formData.nisn} onChange={(e) => setFormData({ ...formData, nisn: e.target.value })}
+                    maxLength={10}
+                    value={formData.nisn} onChange={(e) => setFormData({ ...formData, nisn: e.target.value.replace(/\D/g, '') })}
                     placeholder="0051234567"
-                    className="h-10 px-3 rounded-xl bg-fill text-label text-sm font-mono border border-separator/40 focus:outline-none focus:ring-2 focus:ring-emerald-700/50"
+                    className="h-10 px-3 rounded-lg bg-bg text-label text-sm font-id border border-separator focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   />
                 </div>
 
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-semibold text-label">Kelas</label>
-                  <select 
-                    value={formData.kelasId} 
+                  <select
+                    value={formData.kelasId}
                     onChange={(e) => setFormData({ ...formData, kelasId: e.target.value })}
-                    className="h-10 px-3 rounded-xl bg-fill text-label text-sm border border-separator/40 focus:outline-none focus:ring-2 focus:ring-emerald-700/50 cursor-pointer"
+                    className="h-10 px-3 rounded-lg bg-bg text-label text-sm border border-separator focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary cursor-pointer"
                   >
                     <option value="" className="bg-bg text-label">-- Tanpa Kelas --</option>
                     {kelasList.map((k) => (
@@ -757,39 +763,39 @@ export default function DataSiswa() {
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-label">Email Akun Login</label>
-                <input 
+                <input
                   type="email" required
                   value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="siswa@smp-alhidayah.sch.id"
-                  className="h-10 px-3 rounded-xl bg-fill text-label text-sm border border-separator/40 focus:outline-none focus:ring-2 focus:ring-emerald-700/50"
+                  className="h-10 px-3 rounded-lg bg-bg text-label text-sm border border-separator focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
               </div>
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-label">
-                  Kata Sandi {editingId ? '(Kosongkan jika tidak diubah)' : '(Minimal 12 karakter)'}
+                  Kata Sandi {editingId ? '(Kosongkan jika tidak diubah)' : '(Minimal 6 karakter)'}
                 </label>
-                <input 
-                  type="password" 
-                  minLength={12}
+                <input
+                  type="password"
+                  minLength={6}
                   required={!editingId}
                   value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder={editingId ? 'Biarkan kosong untuk mempertahankan kata sandi lama' : 'Buat kata sandi minimal 12 karakter'}
-                  className="h-10 px-3 rounded-xl bg-fill text-label text-sm border border-separator/40 focus:outline-none focus:ring-2 focus:ring-emerald-700/50"
+                  placeholder={editingId ? 'Biarkan kosong untuk mempertahankan kata sandi lama' : 'Buat kata sandi minimal 6 karakter'}
+                  className="h-10 px-3 rounded-lg bg-bg text-label text-sm border border-separator focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
               </div>
-              
-              <div className="flex justify-end gap-2.5 pt-3 border-t border-separator/40 mt-2">
-                <button 
-                  type="button" 
+
+              <div className="flex justify-end gap-2.5 pt-3 border-t border-separator mt-2">
+                <button
+                  type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="h-10 px-4 rounded-xl text-xs font-semibold text-label hover:bg-fill transition-colors border border-separator/40"
+                  className="h-9 px-4 rounded-lg text-xs font-medium text-label hover:bg-fill transition-colors border border-separator cursor-pointer"
                 >
                   Batal
                 </button>
-                <button 
+                <button
                   type="submit" disabled={isSubmitting}
-                  className="h-10 px-5 rounded-xl text-xs font-semibold text-white bg-primary hover:bg-primary-hover active:scale-95 transition-all disabled:opacity-50 shadow-xs"
+                  className="h-9 px-5 rounded-lg text-xs font-medium text-white bg-primary hover:bg-primary-hover transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   {isSubmitting ? 'Menyimpan...' : editingId ? 'Simpan Perubahan' : 'Daftarkan Siswa'}
                 </button>
@@ -801,106 +807,117 @@ export default function DataSiswa() {
 
       {/* Modal Akun Orang Tua */}
       {isOrtuModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
-          <form 
-            onSubmit={saveParentAccount} 
-            className="w-full max-w-lg bg-bg-secondary border border-separator/40 rounded-2xl shadow-xl p-6 relative flex flex-col gap-4 max-h-[90vh] overflow-y-auto"
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45">
+          <form
+            onSubmit={saveParentAccount}
+            className="w-full max-w-lg bg-card border border-separator rounded-xl p-6 relative flex flex-col gap-4 max-h-[90vh] overflow-y-auto"
           >
-            <button 
+            <button
               type="button"
               onClick={() => setIsOrtuModalOpen(false)}
-              className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-fill transition-colors text-label-secondary"
+              className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-fill transition-colors text-label-secondary cursor-pointer"
             >
               <X size={20} />
             </button>
 
             <div>
-              <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400 mb-1">
+              <div className="inline-flex items-center gap-1.5 text-xs font-medium text-accent mb-1">
                 <ShieldCheck size={15} />
-                <span>Akses Orang Tua / Wali Murid</span>
+                <span>Akses Orang Tua & Wali Murid</span>
               </div>
-              <h2 className="text-xl font-serif font-bold text-label">
+              <h2 className="text-lg font-semibold text-label">
                 Buat & Tautkan Akun Orang Tua
               </h2>
               <p className="text-xs text-label-secondary mt-0.5">
-                Akun ini memberikan hak akses bagi orang tua untuk memantau nilai rapor anak secara transparan.
+                Username login menggunakan NIK KTP 16 digit untuk memantau nilai rapor anak.
               </p>
             </div>
 
             {errorMsg && (
-              <div className="p-3 rounded-xl flex items-start gap-2 bg-red-50 dark:bg-red-950/40 text-red-900 dark:text-red-200 border border-red-200 dark:border-red-800/60 text-xs font-medium">
-                <AlertCircle size={16} className="text-red-700 dark:text-red-400 mt-0.5 shrink-0" />
+              <div className="p-3 rounded-lg flex items-start gap-2 bg-red-50 dark:bg-red-950/40 text-red-900 dark:text-red-200 border border-red-500/30 text-xs font-medium">
+                <AlertCircle size={16} className="text-[var(--status-fail)] mt-0.5 shrink-0" />
                 <p>{errorMsg}</p>
               </div>
             )}
 
             <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-label">NIK KTP (16 Digit Angka)</label>
+              <input
+                required
+                maxLength={16}
+                value={ortuForm.nik}
+                onChange={(e) => setOrtuForm({ ...ortuForm, nik: e.target.value.replace(/\D/g, '') })}
+                placeholder="Contoh: 1271012345670001"
+                className="h-10 px-3 rounded-lg bg-bg text-label text-sm font-id border border-separator focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-label">Nama Orang Tua / Wali</label>
-              <input 
-                required 
-                value={ortuForm.nama} 
-                onChange={(e) => setOrtuForm({ ...ortuForm, nama: e.target.value })} 
+              <input
+                required
+                value={ortuForm.nama}
+                onChange={(e) => setOrtuForm({ ...ortuForm, nama: e.target.value })}
                 placeholder="Contoh: Bapak H. Hendra Syahputra"
-                className="h-10 px-3 rounded-xl bg-fill text-label text-sm border border-separator/40 focus:outline-none focus:ring-2 focus:ring-amber-600/50" 
+                className="h-10 px-3 rounded-lg bg-bg text-label text-sm border border-separator focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               />
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-label">Email Login</label>
-              <input 
-                required 
-                type="email" 
-                value={ortuForm.email} 
-                onChange={(e) => setOrtuForm({ ...ortuForm, email: e.target.value })} 
-                placeholder="ortu@gmail.com"
-                className="h-10 px-3 rounded-xl bg-fill text-label text-sm border border-separator/40 focus:outline-none focus:ring-2 focus:ring-amber-600/50" 
+              <label className="text-xs font-semibold text-label">Email Login (Opsional)</label>
+              <input
+                type="email"
+                value={ortuForm.email}
+                onChange={(e) => setOrtuForm({ ...ortuForm, email: e.target.value })}
+                placeholder="Kosongkan untuk otomatis memakai NIK@alhidayah.sch.id"
+                className="h-10 px-3 rounded-lg bg-bg text-label text-sm border border-separator focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               />
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-label">Kata Sandi Awal (Min. 12 Karakter)</label>
-              <input 
-                required 
-                type="password" 
-                minLength={12} 
-                value={ortuForm.password} 
-                onChange={(e) => setOrtuForm({ ...ortuForm, password: e.target.value })} 
-                placeholder="Masukkan kata sandi akun"
-                className="h-10 px-3 rounded-xl bg-fill text-label text-sm border border-separator/40 focus:outline-none focus:ring-2 focus:ring-amber-600/50" 
+              <label className="text-xs font-semibold text-label">Kata Sandi Awal (Minimal 6 karakter)</label>
+              <input
+                required
+                type="password"
+                minLength={6}
+                value={ortuForm.password}
+                onChange={(e) => setOrtuForm({ ...ortuForm, password: e.target.value })}
+                placeholder="Masukkan minimal 6 karakter"
+                className="h-10 px-3 rounded-lg bg-bg text-label text-sm border border-separator focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               />
             </div>
 
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-label">Pilih Anak yang Ditautkan</label>
-              <select 
-                required 
-                multiple 
-                value={ortuForm.siswaIds} 
-                onChange={(e) => setOrtuForm({ ...ortuForm, siswaIds: Array.from(e.target.selectedOptions, (option) => option.value) })} 
-                className="min-h-32 w-full p-2.5 rounded-xl bg-fill text-label text-xs border border-separator/40 focus:outline-none focus:ring-2 focus:ring-amber-600/50"
+              <select
+                required
+                multiple
+                value={ortuForm.siswaIds}
+                onChange={(e) => setOrtuForm({ ...ortuForm, siswaIds: Array.from(e.target.selectedOptions, (option) => option.value) })}
+                className="min-h-32 w-full p-2.5 rounded-lg bg-bg text-label text-xs border border-separator focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               >
                 {siswaList.filter((siswa) => !siswa.ortu).map((siswa) => (
-                  <option key={siswa.id} value={siswa.id} className="py-1 px-1.5 rounded hover:bg-emerald-800 hover:text-white">
+                  <option key={siswa.id} value={siswa.id} className="py-1 px-1.5 rounded">
                     {siswa.nama} — NISN: {siswa.nisn} {siswa.kelas ? `(${siswa.kelas.nama})` : ''}
                   </option>
                 ))}
               </select>
               <span className="text-[11px] text-label-secondary">
-                Tahan tombol <kbd className="px-1 py-0.5 rounded bg-fill border border-separator/40">Ctrl</kbd> (Windows) atau <kbd className="px-1 py-0.5 rounded bg-fill border border-separator/40">Command</kbd> (Mac) untuk memilih lebih dari satu anak.
+                Tahan tombol <kbd className="px-1 py-0.5 rounded bg-fill border border-separator">Ctrl</kbd> (Windows) atau <kbd className="px-1 py-0.5 rounded bg-fill border border-separator">Command</kbd> (Mac) untuk memilih lebih dari satu anak.
               </span>
             </div>
 
-            <div className="flex justify-end gap-2.5 pt-3 border-t border-separator/40 mt-2">
-              <button 
-                type="button" 
-                onClick={() => setIsOrtuModalOpen(false)} 
-                className="h-10 px-4 rounded-xl text-xs font-semibold text-label hover:bg-fill transition-colors border border-separator/40"
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-separator mt-2">
+              <button
+                type="button"
+                onClick={() => setIsOrtuModalOpen(false)}
+                className="h-9 px-4 rounded-lg text-xs font-medium text-label hover:bg-fill transition-colors border border-separator cursor-pointer"
               >
                 Batal
               </button>
-              <button 
-                disabled={isSavingOrtu} 
-                className="h-10 px-5 rounded-xl text-xs font-semibold text-white bg-amber-700 hover:bg-amber-600 active:scale-95 transition-all disabled:opacity-50 shadow-xs"
+              <button
+                disabled={isSavingOrtu}
+                className="h-9 px-5 rounded-lg text-xs font-medium text-white bg-accent hover:bg-amber-800 transition-colors disabled:opacity-50 cursor-pointer"
               >
                 {isSavingOrtu ? 'Menyimpan...' : 'Buat Akun Orang Tua'}
               </button>
@@ -911,40 +928,38 @@ export default function DataSiswa() {
 
       {/* Modal Konfirmasi Hapus Siswa */}
       {deletingSiswa && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="w-full max-w-md bg-bg-secondary border border-separator/40 rounded-2xl shadow-xl p-6 relative flex flex-col gap-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45">
+          <div className="w-full max-w-md bg-card border border-separator rounded-xl p-6 relative flex flex-col gap-4">
             <div className="flex items-center gap-3 text-red-600">
-              <div className="p-2.5 rounded-xl bg-red-50 dark:bg-red-950/50 border border-red-200/50 dark:border-red-900/40">
-                <Trash2 size={22} />
-              </div>
+              <Trash2 size={20} className="shrink-0" />
               <div>
-                <h3 className="text-lg font-serif font-bold text-label">Hapus Data Siswa?</h3>
+                <h3 className="text-base font-semibold text-label">Hapus Data Siswa?</h3>
                 <p className="text-xs text-label-secondary">Tindakan ini permanen dan tidak dapat dibatalkan</p>
               </div>
             </div>
 
-            <p className="text-xs text-label-secondary leading-relaxed bg-fill/50 p-3 rounded-xl border border-separator/30">
-              Apakah Anda yakin ingin menghapus peserta didik <strong className="text-label">{deletingSiswa.nama}</strong> (NISN: {deletingSiswa.nisn})? Seluruh rekaman nilai capaian akademik dan akun pengguna terkait akan dihapus.
+            <p className="text-xs text-label-secondary leading-relaxed bg-fill p-3 rounded-lg border border-separator">
+              Apakah Anda yakin ingin menghapus peserta didik <strong className="text-label">{deletingSiswa.nama}</strong> (NISN: <span className="font-id">{deletingSiswa.nisn}</span>)? Seluruh rekaman nilai capaian akademik dan akun pengguna terkait akan dihapus.
             </p>
 
             {errorMsg && (
-              <div className="p-3 rounded-xl text-xs bg-red-50 dark:bg-red-950/40 text-red-900 dark:text-red-200 border border-red-200">
+              <div className="p-3 rounded-lg text-xs bg-red-50 dark:bg-red-950/40 text-red-900 dark:text-red-200 border border-red-500/30">
                 {errorMsg}
               </div>
             )}
 
-            <div className="flex justify-end gap-2.5 pt-2 border-t border-separator/40">
+            <div className="flex justify-end gap-2.5 pt-2 border-t border-separator">
               <button
                 onClick={() => setDeletingSiswa(null)}
                 disabled={isDeleting}
-                className="h-10 px-4 rounded-xl text-xs font-semibold text-label hover:bg-fill transition-colors border border-separator/40"
+                className="h-9 px-4 rounded-lg text-xs font-medium text-label hover:bg-fill transition-colors border border-separator cursor-pointer"
               >
                 Batal
               </button>
               <button
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className="h-10 px-5 rounded-xl text-xs font-semibold text-white bg-red-600 hover:bg-red-700 active:scale-95 transition-all flex items-center gap-2 shadow-xs disabled:opacity-50"
+                className="h-9 px-5 rounded-lg text-xs font-medium text-white bg-red-600 hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50 cursor-pointer"
               >
                 {isDeleting ? (
                   <>

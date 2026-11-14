@@ -3,20 +3,17 @@
 import { apiFetch } from "@/lib/api";
 import { errorMessage } from '@/lib/errors';
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { 
-  Users, 
-  Printer, 
-  Edit3, 
-  CheckCircle2, 
-  AlertCircle, 
-  RefreshCw, 
-  Search, 
-  School, 
-  TrendingUp,
+import {
+  Printer,
+  Edit3,
+  CheckCircle2,
+  AlertCircle,
+  RefreshCw,
+  Search,
+  School,
   X,
   Plus,
   Trash2,
-  Layers,
   Crown,
   ArrowRight
 } from 'lucide-react';
@@ -198,7 +195,7 @@ export default function WaliKelasPage() {
   // Helper evaluasi status kelengkapan catatan rapor
   const getCatatanCompleteness = (catatan: SiswaRekap['catatanRapor']): 'lengkap' | 'parsial' | 'kosong' => {
     if (!catatan) return 'kosong';
-    const hasPresensi = (catatan.sakit ?? 0) > 0 || (catatan.izin ?? 0) > 0 || (catatan.alfa ?? 0) > 0;
+    const hasPresensi = catatan !== null && (catatan.sakit ?? 0) >= 0 && (catatan.izin ?? 0) >= 0 && (catatan.alfa ?? 0) >= 0;
     const hasSikap = !!catatan.sikapSpiritual && !!catatan.sikapSosial;
     const hasWali = !!catatan.catatanWali && catatan.catatanWali.trim().length > 0;
 
@@ -282,6 +279,7 @@ export default function WaliKelasPage() {
             : item
         )
       );
+      setEditingSiswa((prev) => (prev ? { ...prev, catatanRapor: data.data } : null));
 
       if (andClose) {
         setEditingSiswa(null);
@@ -367,13 +365,15 @@ export default function WaliKelasPage() {
 
   // Status kelengkapan tab modal saat ini
   const tabStatus = useMemo(() => {
-    const presensiDone = formCatatan.sakit > 0 || formCatatan.izin > 0 || formCatatan.alfa > 0;
+    const presensiDone =
+      editingSiswa?.catatanRapor != null ||
+      (formCatatan.sakit >= 0 && formCatatan.izin >= 0 && formCatatan.alfa >= 0);
     const sikapDone = !!formCatatan.sikapSpiritual && !!formCatatan.sikapSosial;
     const ekskulDone = formCatatan.ekskul.length > 0;
     const waliDone = formCatatan.catatanWali.trim().length > 0;
 
     return { presensi: presensiDone, sikap: sikapDone, ekskul: ekskulDone, wali: waliDone };
-  }, [formCatatan]);
+  }, [formCatatan, editingSiswa]);
 
   if (!isWali && userRole !== 'ADMIN') {
     return (
@@ -390,18 +390,15 @@ export default function WaliKelasPage() {
   return (
     <div className="flex flex-col gap-6">
       
-      {/* Header Banner */}
-      <div className="bg-card rounded-xl border border-separator p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* Header Band */}
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 pb-5 border-b border-separator">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="w-2 h-2 rounded-full bg-primary"></span>
-            <span className="text-xs font-semibold uppercase tracking-wider text-primary">Rekapitulasi Wali Kelas</span>
-          </div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-label">
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-label">
             Leger Nilai, Catatan & Cetak Rapor
           </h1>
           <p className="text-sm text-label-secondary mt-1">
-            Kelas {kelasData?.nama || '-'} &bull; Semester {semester === 'GANJIL' ? 'Ganjil' : 'Genap'} &bull; Tahun Ajaran {tahunAjaran}
+            Kelas {kelasData?.nama || '-'} &middot; Semester {semester === 'GANJIL' ? 'Ganjil' : 'Genap'} &middot; Tahun Ajaran{' '}
+            <span className="font-id">{tahunAjaran}</span>
           </p>
         </div>
 
@@ -411,7 +408,7 @@ export default function WaliKelasPage() {
             <select
               value={selectedKelasId}
               onChange={(e) => handleClassSelect(e.target.value)}
-              className="h-9 px-3 rounded-lg bg-card border border-separator text-label text-xs font-semibold focus:border-primary outline-none cursor-pointer"
+              className="h-9 px-3 rounded-lg bg-card border border-separator text-label text-xs font-medium focus:border-primary outline-none cursor-pointer"
             >
               {kelasListAdmin.map(k => (
                 <option key={k.id} value={k.id}>Kelas {k.nama} (Tingkat {k.tingkat})</option>
@@ -422,7 +419,7 @@ export default function WaliKelasPage() {
           <select
             value={semester}
             onChange={(e) => setSemester(e.target.value)}
-            className="h-9 px-3 rounded-lg bg-card border border-separator text-label text-xs font-semibold focus:border-primary outline-none cursor-pointer"
+            className="h-9 px-3 rounded-lg bg-card border border-separator text-label text-xs font-medium focus:border-primary outline-none cursor-pointer"
           >
             <option value="GANJIL">Semester Ganjil</option>
             <option value="GENAP">Semester Genap</option>
@@ -431,7 +428,7 @@ export default function WaliKelasPage() {
           <select
             value={tahunAjaran}
             onChange={(e) => setTahunAjaran(e.target.value)}
-            className="h-9 px-3 rounded-lg bg-card border border-separator text-label text-xs font-semibold focus:border-primary outline-none cursor-pointer"
+            className="h-9 px-3 rounded-lg bg-card border border-separator text-label text-xs font-medium focus:border-primary outline-none cursor-pointer"
           >
             {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
           </select>
@@ -448,55 +445,53 @@ export default function WaliKelasPage() {
 
       {/* Notifications */}
       {successMsg && (
-        <div className="p-3 rounded-lg flex items-center gap-2.5 bg-primary-subtle border border-primary-border text-primary text-xs font-medium animate-in fade-in duration-150">
+        <div className="p-3 rounded-lg flex items-center gap-2.5 bg-primary-subtle border border-primary-border text-primary text-xs font-medium">
           <CheckCircle2 size={16} className="shrink-0" />
           <span>{successMsg}</span>
         </div>
       )}
       {errorMsg && (
-        <div className="p-3 rounded-lg flex items-center gap-2.5 bg-[var(--status-fail-bg)] border border-[var(--status-fail-border)] text-[var(--status-fail)] text-xs font-medium animate-in fade-in duration-150">
+        <div className="p-3 rounded-lg flex items-center gap-2.5 bg-[var(--status-fail-bg)] border border-[var(--status-fail-border)] text-[var(--status-fail)] text-xs font-medium">
           <AlertCircle size={16} className="shrink-0" />
           <span>{errorMsg}</span>
         </div>
       )}
 
-      {/* Top 3 Rankings Showcase (Podium) */}
+      {/* Top 3 Rankings Showcase */}
       {topThree.length > 0 && topThree[0].rataRata > 0 && (
-        <div className="bg-card rounded-xl border border-separator p-4 shadow-sm flex flex-col gap-3">
+        <div className="bg-card rounded-xl border border-separator p-4 flex flex-col gap-3">
           <div className="flex items-center gap-2">
-            <Crown size={18} className="text-accent" />
-            <span className="text-xs font-bold text-label-secondary uppercase tracking-wider">
+            <Crown size={16} className="text-accent" />
+            <span className="text-xs font-semibold text-label">
               Peringkat Terbaik Kelas {kelasData?.nama}
             </span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {topThree.map((siswa, idx) => (
-              <div 
-                key={siswa.siswaId} 
+              <div
+                key={siswa.siswaId}
                 className={`p-3 rounded-lg border flex items-center justify-between ${
-                  idx === 0 
-                    ? 'bg-amber-500/10 border-amber-500/30' 
-                    : idx === 1 
-                    ? 'bg-slate-300/15 border-slate-300/40' 
-                    : 'bg-amber-700/10 border-amber-700/30'
+                  idx === 0
+                    ? 'bg-amber-500/10 border-amber-500/30'
+                    : 'bg-fill/40 border-separator'
                 }`}
               >
-                <div className="flex items-center gap-2.5">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
-                    idx === 0 ? 'bg-amber-500 text-white' : idx === 1 ? 'bg-slate-400 text-white' : 'bg-amber-700 text-white'
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-semibold text-xs num-tabular shrink-0 ${
+                    idx === 0 ? 'bg-accent text-white' : 'bg-card border border-separator text-label'
                   }`}>
                     {siswa.ranking}
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-xs text-label leading-tight">{siswa.nama}</h3>
-                    <span className="text-[10px] text-label-secondary font-mono">{siswa.nisn}</span>
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-xs text-label truncate">{siswa.nama}</h3>
+                    <span className="text-[11px] text-label-secondary font-id">{siswa.nisn}</span>
                   </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-sm font-bold font-mono text-primary tabular-nums">
+                <div className="text-right shrink-0 ml-2">
+                  <span className="text-sm font-semibold num-tabular text-primary">
                     {siswa.rataRata}
                   </span>
-                  <div className="text-[10px] text-label-secondary">Rata-rata</div>
+                  <div className="text-[11px] text-label-secondary">Rata-rata</div>
                 </div>
               </div>
             ))}
@@ -504,66 +499,53 @@ export default function WaliKelasPage() {
         </div>
       )}
 
-      {/* Class Statistics Overview */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-card border border-separator rounded-xl p-3.5 flex flex-col gap-1 shadow-sm">
-          <div className="flex items-center justify-between text-label-secondary">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Total Siswa</span>
-            <Users size={14} className="text-primary" />
-          </div>
-          <span className="text-2xl font-bold tabular-nums text-label">{rekapList.length}</span>
-          <span className="text-[11px] text-label-secondary">Peserta Didik Terdaftar</span>
+      {/* KPI Typographic Strip */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-separator border border-separator rounded-xl overflow-hidden">
+        <div className="bg-card p-4 flex flex-col gap-1">
+          <span className="text-[13px] font-medium text-label-secondary">Total siswa</span>
+          <span className="text-2xl font-semibold num-tabular text-label">{rekapList.length}</span>
+          <span className="text-xs text-label-secondary">Peserta didik terdaftar</span>
         </div>
 
-        <div className="bg-card border border-separator rounded-xl p-3.5 flex flex-col gap-1 shadow-sm">
-          <div className="flex items-center justify-between text-label-secondary">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Rata-Rata Kelas</span>
-            <TrendingUp size={14} className="text-accent" />
-          </div>
-          <span className="text-2xl font-bold tabular-nums text-label">{rataRataKelas}</span>
-          <span className="text-[11px] text-label-secondary">Akumulasi Nilai Akhir</span>
+        <div className="bg-card p-4 flex flex-col gap-1">
+          <span className="text-[13px] font-medium text-label-secondary">Rata-rata kelas</span>
+          <span className="text-2xl font-semibold num-tabular text-label">{rataRataKelas}</span>
+          <span className="text-xs text-label-secondary">Akumulasi nilai akhir</span>
         </div>
 
-        <div className="bg-card border border-separator rounded-xl p-3.5 flex flex-col gap-1 shadow-sm">
-          <div className="flex items-center justify-between text-label-secondary">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Wali Kelas</span>
-            <School size={14} className="text-primary" />
-          </div>
-          <span className="text-base font-bold text-label truncate">
-            {kelasData?.wali?.nama || 'Belum Ditetapkan'}
+        <div className="bg-card p-4 flex flex-col gap-1">
+          <span className="text-[13px] font-medium text-label-secondary">Wali kelas</span>
+          <span className="text-base font-semibold text-label truncate">
+            {kelasData?.wali?.nama || 'Belum ditetapkan'}
           </span>
-          <span className="text-[11px] text-label-secondary font-mono">
-            {kelasData?.wali?.nip ? `NIP: ${kelasData.wali.nip}` : 'NIP: -'}
+          <span className="text-xs text-label-secondary font-id truncate">
+            {kelasData?.wali?.nip ? `NIP ${kelasData.wali.nip}` : 'NIP -'}
           </span>
         </div>
 
-        <div className="bg-card border border-separator rounded-xl p-3.5 flex flex-col gap-1 shadow-sm">
-          <div className="flex items-center justify-between text-label-secondary">
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Mata Pelajaran</span>
-            <Layers size={14} className="text-accent" />
-          </div>
-          <span className="text-2xl font-bold tabular-nums text-label">{mapelList.length}</span>
-          <span className="text-[11px] text-label-secondary">Kurikulum Terdaftar</span>
+        <div className="bg-card p-4 flex flex-col gap-1">
+          <span className="text-[13px] font-medium text-label-secondary">Mata pelajaran</span>
+          <span className="text-2xl font-semibold num-tabular text-label">{mapelList.length}</span>
+          <span className="text-xs text-label-secondary">Kurikulum terdaftar</span>
         </div>
       </div>
 
       {/* Recapitulation Table Section */}
-      <section className="bg-card rounded-xl border border-separator shadow-sm overflow-hidden flex flex-col">
-        
+      <section className="bg-card rounded-xl border border-separator overflow-hidden flex flex-col">
         {/* Table Toolbar */}
-        <div className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-separator bg-bg/50">
-          <span className="font-semibold text-sm text-label">
+        <div className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-separator bg-fill/30">
+          <span className="font-semibold text-sm text-label num-tabular">
             Leger Nilai & Rekapitulasi Rapor ({filteredRekap.length} Siswa)
           </span>
 
           <div className="relative w-full sm:w-64">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-label-tertiary" />
-            <input 
+            <input
               type="text"
               placeholder="Cari siswa atau NISN..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-8 pl-8 pr-3 rounded-lg bg-bg border border-separator text-label text-xs placeholder:text-label-tertiary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+              className="w-full h-8 pl-8 pr-3 rounded-lg bg-bg border border-separator text-label text-xs placeholder:text-label-tertiary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
             />
           </div>
         </div>
@@ -571,12 +553,12 @@ export default function WaliKelasPage() {
         {/* Scrollable Table */}
         <div className="overflow-x-auto max-h-[65vh]">
           <table className="w-full text-left border-collapse min-w-[760px]">
-            <thead className="sticky top-0 z-20 bg-card border-b border-separator shadow-xs">
-              <tr className="text-xs font-semibold text-label-secondary uppercase tracking-wider">
+            <thead className="sticky top-0 z-20 bg-card border-b border-separator">
+              <tr className="text-xs font-medium text-label-secondary">
                 <th className="px-4 py-3 text-center w-14">Rank</th>
                 <th className="px-4 py-3 min-w-[200px]">Nama Peserta Didik</th>
-                <th className="px-3 py-3 w-32 font-mono">NISN</th>
-                <th className="px-3 py-3 text-center w-28">Rata-Rata (NA)</th>
+                <th className="px-3 py-3 w-32">NISN</th>
+                <th className="px-3 py-3 text-right w-28">Rata-Rata (NA)</th>
                 <th className="px-3 py-3 text-center w-32">Presensi (S/I/A)</th>
                 <th className="px-3 py-3 text-center w-36">Kelengkapan Catatan</th>
                 <th className="px-4 py-3 text-right w-44">Aksi</th>
@@ -598,12 +580,11 @@ export default function WaliKelasPage() {
                   const completeness = getCatatanCompleteness(catatan);
 
                   return (
-                    <tr key={item.siswaId} className="hover:bg-bg/60 transition-colors">
-                      <td className="px-4 py-2.5 text-center font-bold font-mono">
-                        <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs ${
-                          item.ranking === 1 ? 'bg-amber-400 text-white font-extrabold' :
-                          item.ranking === 2 ? 'bg-slate-400 text-white font-extrabold' :
-                          item.ranking === 3 ? 'bg-amber-700 text-white font-extrabold' :
+                    <tr key={item.siswaId} className="hover:bg-card-subtle transition-colors">
+                      <td className="px-4 py-2.5 text-center font-semibold num-tabular">
+                        <span className={`inline-flex items-center justify-center w-6 h-6 rounded-md text-xs ${
+                          item.ranking === 1 ? 'bg-accent text-white font-semibold' :
+                          item.ranking <= 3 ? 'bg-primary-subtle text-primary border border-primary-border font-semibold' :
                           'text-label-secondary bg-fill'
                         }`}>
                           {item.ranking}
@@ -614,35 +595,32 @@ export default function WaliKelasPage() {
                         {item.nama}
                       </td>
 
-                      <td className="px-3 py-2.5 font-mono text-xs text-label-secondary tabular-nums">
+                      <td className="px-3 py-2.5 font-id text-xs text-label-secondary">
                         {item.nisn}
                       </td>
 
-                      <td className="px-3 py-2.5 text-center font-bold font-mono text-sm tabular-nums">
+                      <td className="px-3 py-2.5 text-right font-semibold num-tabular text-sm">
                         <span className={item.rataRata >= 75 ? 'text-primary' : 'text-accent'}>
                           {item.rataRata}
                         </span>
                       </td>
 
-                      <td className="px-3 py-2.5 text-center font-mono text-xs text-label-secondary tabular-nums">
+                      <td className="px-3 py-2.5 text-center num-tabular text-xs text-label-secondary">
                         {presensiText}
                       </td>
 
                       <td className="px-3 py-2.5 text-center">
                         {completeness === 'lengkap' ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border border-emerald-500/20 font-semibold">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400"></span>
+                          <span className="inline-flex items-center text-[11px] px-2 py-0.5 rounded-md bg-primary-subtle text-primary border border-primary-border font-medium">
                             Lengkap
                           </span>
                         ) : completeness === 'parsial' ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20 font-semibold">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                          <span className="inline-flex items-center text-[11px] px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/30 font-medium">
                             Parsial
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-fill text-label-tertiary border border-separator/50">
-                            <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-                            Belum Diisi
+                          <span className="inline-flex items-center text-[11px] px-2 py-0.5 rounded-md bg-fill text-label-tertiary border border-separator">
+                            Belum diisi
                           </span>
                         )}
                       </td>
@@ -680,19 +658,18 @@ export default function WaliKelasPage() {
 
       {/* Modal Stepped Tabulasi Catatan Rapor */}
       {editingSiswa && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-card w-full max-w-xl rounded-2xl border border-separator shadow-xl p-5 sm:p-6 flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
-            
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/45 flex items-center justify-center p-4">
+          <div className="bg-card w-full max-w-xl rounded-xl border border-separator p-5 sm:p-6 flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-separator pb-3">
               <div>
-                <h2 className="text-base font-bold text-label">
+                <h2 className="text-base font-semibold text-label">
                   Catatan Rapor: {editingSiswa.nama}
                 </h2>
-                <p className="text-xs text-label-secondary">
-                  NISN {editingSiswa.nisn} &bull; Kelas {kelasData?.nama} &bull; Semester {semester} {tahunAjaran}
+                <p className="text-xs text-label-secondary mt-0.5">
+                  <span className="font-id">NISN {editingSiswa.nisn}</span> &middot; Kelas {kelasData?.nama} &middot; Semester {semester} {tahunAjaran}
                 </p>
               </div>
-              <button 
+              <button
                 onClick={() => setEditingSiswa(null)}
                 className="p-1.5 rounded-lg hover:bg-fill text-label-secondary transition-colors cursor-pointer"
               >
@@ -700,7 +677,7 @@ export default function WaliKelasPage() {
               </button>
             </div>
 
-            {/* Stepped Tab Navigasi Modal dengan Progress Indicators */}
+            {/* Stepped Tab Navigasi Modal */}
             <div className="grid grid-cols-4 gap-1.5 border-b border-separator pb-3">
               {(
                 [
@@ -716,15 +693,15 @@ export default function WaliKelasPage() {
                     key={tab.key}
                     type="button"
                     onClick={() => setActiveModalTab(tab.key)}
-                    className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                       isActive
-                        ? 'bg-primary text-white shadow-xs'
+                        ? 'bg-primary text-white'
                         : tab.done
-                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200/50'
-                        : 'bg-fill/60 text-label-secondary hover:text-label hover:bg-fill'
+                        ? 'bg-primary-subtle text-primary border border-primary-border'
+                        : 'bg-fill text-label-secondary hover:text-label'
                     }`}
                   >
-                    {tab.done && !isActive && <CheckCircle2 size={13} className="text-emerald-600" />}
+                    {tab.done && !isActive && <CheckCircle2 size={13} className="text-primary shrink-0" />}
                     <span className="truncate">{tab.label}</span>
                   </button>
                 );
@@ -732,42 +709,41 @@ export default function WaliKelasPage() {
             </div>
 
             <form onSubmit={(e) => handleSaveCatatan(e, true)} className="flex flex-col gap-4">
-              
               {/* TAB 1: PRESENSI */}
               {activeModalTab === 'presensi' && (
-                <div className="flex flex-col gap-3 py-1 animate-in fade-in duration-150">
+                <div className="flex flex-col gap-3 py-1">
                   <span className="text-xs text-label-secondary">
                     Rekapitulasi hari ketidakhadiran siswa selama satu semester berjalan:
                   </span>
                   <div className="grid grid-cols-3 gap-3">
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-semibold text-label">Sakit (Hari)</label>
-                      <input 
+                      <input
                         type="number"
                         min={0}
                         value={formCatatan.sakit}
                         onChange={(e) => setFormCatatan({ ...formCatatan, sakit: Number(e.target.value) })}
-                        className="h-10 px-3 rounded-lg bg-bg border border-separator text-label font-mono text-center text-sm focus:outline-none focus:border-primary"
+                        className="h-10 px-3 rounded-lg bg-bg border border-separator text-label num-tabular text-center text-sm focus:outline-none focus:border-primary"
                       />
                     </div>
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-semibold text-label">Izin (Hari)</label>
-                      <input 
+                      <input
                         type="number"
                         min={0}
                         value={formCatatan.izin}
                         onChange={(e) => setFormCatatan({ ...formCatatan, izin: Number(e.target.value) })}
-                        className="h-10 px-3 rounded-lg bg-bg border border-separator text-label font-mono text-center text-sm focus:outline-none focus:border-primary"
+                        className="h-10 px-3 rounded-lg bg-bg border border-separator text-label num-tabular text-center text-sm focus:outline-none focus:border-primary"
                       />
                     </div>
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-semibold text-label">Alfa (Hari)</label>
-                      <input 
+                      <input
                         type="number"
                         min={0}
                         value={formCatatan.alfa}
                         onChange={(e) => setFormCatatan({ ...formCatatan, alfa: Number(e.target.value) })}
-                        className="h-10 px-3 rounded-lg bg-bg border border-separator text-label font-mono text-center text-sm focus:outline-none focus:border-primary"
+                        className="h-10 px-3 rounded-lg bg-bg border border-separator text-label num-tabular text-center text-sm focus:outline-none focus:border-primary"
                       />
                     </div>
                   </div>
@@ -776,15 +752,14 @@ export default function WaliKelasPage() {
 
               {/* TAB 2: SIKAP */}
               {activeModalTab === 'sikap' && (
-                <div className="flex flex-col gap-3 py-1 animate-in fade-in duration-150">
-                  {/* Spiritual */}
+                <div className="flex flex-col gap-3 py-1">
                   <div className="flex flex-col gap-1.5 p-3 rounded-lg bg-bg border border-separator">
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-semibold text-label">Sikap Spiritual</label>
                       <select
                         value={formCatatan.sikapSpiritual}
                         onChange={(e) => setFormCatatan({ ...formCatatan, sikapSpiritual: e.target.value })}
-                        className="h-8 px-2 rounded-md bg-card border border-separator text-label text-xs font-bold outline-none focus:border-primary cursor-pointer"
+                        className="h-8 px-2 rounded-md bg-card border border-separator text-label text-xs font-semibold outline-none focus:border-primary cursor-pointer"
                       >
                         <option value="">Belum dinilai</option>
                         <option value="A">A (Sangat Baik)</option>
@@ -802,14 +777,13 @@ export default function WaliKelasPage() {
                     />
                   </div>
 
-                  {/* Sosial */}
                   <div className="flex flex-col gap-1.5 p-3 rounded-lg bg-bg border border-separator">
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-semibold text-label">Sikap Sosial</label>
                       <select
                         value={formCatatan.sikapSosial}
                         onChange={(e) => setFormCatatan({ ...formCatatan, sikapSosial: e.target.value })}
-                        className="h-8 px-2 rounded-md bg-card border border-separator text-label text-xs font-bold outline-none focus:border-primary cursor-pointer"
+                        className="h-8 px-2 rounded-md bg-card border border-separator text-label text-xs font-semibold outline-none focus:border-primary cursor-pointer"
                       >
                         <option value="">Belum dinilai</option>
                         <option value="A">A (Sangat Baik)</option>
@@ -831,7 +805,7 @@ export default function WaliKelasPage() {
 
               {/* TAB 3: EKSTRAKURIKULER */}
               {activeModalTab === 'ekskul' && (
-                <div className="flex flex-col gap-3 py-1 animate-in fade-in duration-150">
+                <div className="flex flex-col gap-3 py-1">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-label-secondary">
                       Daftar kegiatan pengembangan diri / ekstrakurikuler:
@@ -846,7 +820,7 @@ export default function WaliKelasPage() {
                   </div>
 
                   {formCatatan.ekskul.length === 0 ? (
-                    <p className="text-xs text-label-tertiary italic py-3 text-center">
+                    <p className="text-xs text-label-tertiary py-3 text-center">
                       Belum ada kegiatan ekstrakurikuler ditambahkan.
                     </p>
                   ) : (
@@ -863,7 +837,7 @@ export default function WaliKelasPage() {
                         <select
                           value={eks.predikat}
                           onChange={(e) => handleUpdateEkskul(idx, 'predikat', e.target.value)}
-                          className="w-14 h-8 px-1.5 rounded-md bg-bg border border-separator text-label text-xs font-bold focus:border-primary"
+                          className="w-14 h-8 px-1.5 rounded-md bg-bg border border-separator text-label text-xs font-semibold focus:border-primary"
                         >
                           <option value="A">A</option>
                           <option value="B">B</option>
@@ -892,7 +866,7 @@ export default function WaliKelasPage() {
 
               {/* TAB 4: CATATAN WALI & KENAIKAN */}
               {activeModalTab === 'wali' && (
-                <div className="flex flex-col gap-3 py-1 animate-in fade-in duration-150">
+                <div className="flex flex-col gap-3 py-1">
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-semibold text-label">
                       Catatan Bimbingan & Motivasi Wali Kelas
@@ -929,7 +903,7 @@ export default function WaliKelasPage() {
                 <button
                   type="button"
                   onClick={() => setEditingSiswa(null)}
-                  className="h-9 px-4 rounded-lg text-xs font-semibold text-label-secondary hover:bg-fill transition-colors cursor-pointer"
+                  className="h-9 px-4 rounded-lg text-xs font-medium text-label-secondary hover:bg-fill transition-colors cursor-pointer"
                 >
                   Tutup
                 </button>
@@ -939,7 +913,7 @@ export default function WaliKelasPage() {
                     type="button"
                     onClick={() => handleSaveCatatan(undefined, false)}
                     disabled={isSavingCatatan}
-                    className="h-9 px-3.5 rounded-lg border border-separator hover:bg-card-subtle text-xs font-semibold text-label transition-colors cursor-pointer disabled:opacity-50"
+                    className="h-9 px-3.5 rounded-lg border border-separator hover:bg-card-subtle text-xs font-medium text-label transition-colors cursor-pointer disabled:opacity-50"
                   >
                     Simpan Saja
                   </button>
@@ -949,7 +923,7 @@ export default function WaliKelasPage() {
                       type="button"
                       onClick={handleSaveAndNext}
                       disabled={isSavingCatatan}
-                      className="h-9 px-4 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer"
+                      className="h-9 px-4 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
                     >
                       <span>Simpan & Lanjut</span>
                       <ArrowRight size={14} />
@@ -958,7 +932,7 @@ export default function WaliKelasPage() {
                     <button
                       type="submit"
                       disabled={isSavingCatatan}
-                      className="h-9 px-4 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer"
+                      className="h-9 px-4 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-medium flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
                     >
                       <CheckCircle2 size={14} />
                       <span>Selesai & Tutup</span>
@@ -966,7 +940,6 @@ export default function WaliKelasPage() {
                   )}
                 </div>
               </div>
-
             </form>
           </div>
         </div>
