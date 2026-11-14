@@ -1,4 +1,5 @@
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+// Same-origin: request /api/* diteruskan ke backend lewat rewrites di next.config.ts.
+export const API_BASE_URL = '';
 
 export type UserRole = 'ADMIN' | 'GURU_MAPEL' | 'GURU_WALI' | 'SISWA' | 'ORTU' | 'GURU';
 
