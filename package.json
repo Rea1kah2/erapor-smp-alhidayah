@@ -19,7 +19,9 @@
     "start:frontend": "npm run start -w frontend",
     "typecheck": "npm run typecheck -w backend && npm run typecheck -w frontend",
     "test": "npm run test -w backend",
-    "lint": "npm run lint -w frontend"
+    "lint": "npm run lint -w frontend",
+    "admin:sync": "npm run admin:sync -w backend",
+    "db:sync": "npm run db:sync -w backend"
   },
   "allowScripts": {
     "backend": true,

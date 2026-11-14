@@ -9,6 +9,7 @@ import adminRoutes from './routes/adminRoutes.js';
 import ortuRoutes from './routes/ortuRoutes.js';
 import { prisma } from './lib/prisma.js';
 import { isDatabaseUnavailableError, sendDatabaseUnavailable } from './lib/database.js';
+import { ensureAdminOnStartup } from './lib/bootstrapAdmin.js';
 
 const app = express();
 const port = Number(process.env.PORT || 3001);
@@ -77,6 +78,7 @@ app.get('/api/ping', async (req, res) => {
 
 const server = app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
+    void ensureAdminOnStartup();
 });
 
 const shutdown = async (signal: string) => {

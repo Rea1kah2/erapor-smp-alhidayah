@@ -14,7 +14,12 @@
     "test": "node --import tsx --test src/lib/*.test.ts",
     "backfill:academic-history": "tsx prisma/backfill-academic-history.ts",
     "backfill:academic-history:apply": "tsx prisma/backfill-academic-history.ts --apply",
+    "admin:sync": "tsx prisma/seed.ts",
+    "db:sync": "prisma db push --skip-generate && tsx prisma/seed.ts",
     "postinstall": "prisma generate || true"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "keywords": [],
   "author": "",

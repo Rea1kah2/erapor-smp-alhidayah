@@ -1,28 +1,14 @@
-import "dotenv/config";
-import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcryptjs";
+import 'dotenv/config';
+import { prisma } from '../src/lib/prisma.js';
+import { syncAdminAccount } from '../src/lib/bootstrapAdmin.js';
 
-const prisma = new PrismaClient();
-
-async function main(){
-    const email = process.env.ADMIN_EMAIL;
-    const password = process.env.ADMIN_PASSWORD;
-    if (!email || !password || password.length < 12) {
-        throw new Error("ADMIN_EMAIL dan ADMIN_PASSWORD (minimal 12 karakter) wajib diatur untuk membuat admin pertama.");
+async function main() {
+    const result = await syncAdminAccount({ forceUpdate: true, strict: true });
+    if (result.status === 'created') {
+        console.log('Akun Admin berhasil dibuat:', result.email);
+    } else if (result.status === 'updated') {
+        console.log('Akun Admin berhasil disinkronkan (kata sandi diperbarui):', result.email);
     }
-    const hashedPassword = await bcrypt.hash(password, 12);
-
-    const admin = await prisma.user.upsert({
-        where: {email: email.toLowerCase()},
-        update: { password: hashedPassword },
-        create: {
-            email: email.toLowerCase(),
-            password: hashedPassword,
-            role: 'ADMIN',
-        },
-    });
-
-    console.log('Akun Admin berhasil dibuat:', admin.email);
 }
 
 main()
